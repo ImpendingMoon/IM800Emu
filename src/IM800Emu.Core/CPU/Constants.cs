@@ -44,6 +44,6 @@ public static class Constants
 		AF, BC, DE, HL, IX, IY, SP,
 		A_, F_, B_, C_, D_, E_, H_, L_,
 		AF_, BC_, DE_, HL_, IX_, IY_, SP_,
-		I, R, IFF1, IFF2,
+		PC, I, R, IFF1, IFF2,
 	}
 }

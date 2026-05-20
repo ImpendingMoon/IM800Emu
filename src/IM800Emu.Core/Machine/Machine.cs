@@ -14,8 +14,8 @@ public class Machine
 	/// <param name="startupRom"></param>
 	public Machine(byte[] startupRom)
 	{
-		_cpu = new CPU.IM800();
 		_memoryBus = new Bus.MemoryBus();
+		_cpu = new CPU.IM800(_memoryBus);
 	}
 
 	/// <summary>
