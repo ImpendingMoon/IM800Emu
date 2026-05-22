@@ -1,7 +1,7 @@
 ﻿namespace IM800Emu.Core.Machine;
 
 /// <summary>
-/// 
+///
 /// </summary>
 public class Machine
 {
@@ -9,7 +9,7 @@ public class Machine
 	private Bus.MemoryBus _memoryBus;
 
 	/// <summary>
-	/// 
+	///
 	/// </summary>
 	/// <param name="startupRom"></param>
 	public Machine(byte[] startupRom)
@@ -19,11 +19,15 @@ public class Machine
 	}
 
 	/// <summary>
-	/// 
+	///
 	/// </summary>
 	public void StepFrame()
 	{
 		var operation = _cpu.Decode();
-		_cpu.Execute(operation);
+
+		if (operation.IsSuccess)
+		{
+			_cpu.Execute(operation.ResultObject);
+		}
 	}
 }

@@ -1,7 +1,7 @@
 namespace IM800Emu.Core.CPU;
 
 /// <summary>
-/// 
+///
 /// </summary>
 public struct DecodedOperation
 {
@@ -11,6 +11,7 @@ public struct DecodedOperation
 	public int FetchCycles;
 	public uint BaseAddress;
 	public uint Size;
+	public ushort InstructionWord;
 
 	public struct Operand
 	{

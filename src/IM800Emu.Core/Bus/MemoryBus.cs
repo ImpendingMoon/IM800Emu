@@ -7,12 +7,12 @@ namespace IM800Emu.Core.Bus;
 /// </summary>
 public class MemoryBus
 {
-	public MemoryResult Read(uint address, Constants.DataSize size)
+	public Result<MemoryOperation> Read(uint address, Constants.DataSize size)
 	{
 		return new();
 	}
 
-	public MemoryResult Write(uint address, Constants.DataSize size, uint value)
+	public Result<MemoryOperation> Write(uint address, Constants.DataSize size, uint value)
 	{
 		return new();
 	}

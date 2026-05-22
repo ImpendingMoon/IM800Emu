@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 namespace IM800Emu.Core.CPU;
 
 /// <summary>
-/// 
+///
 /// </summary>
 public class Registers
 {
@@ -15,7 +15,7 @@ public class Registers
 			Constants.DataSize.Byte => _data[index],
 			Constants.DataSize.Word => BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(index)),
 			Constants.DataSize.Dword => BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan(index)),
-			_ => throw new InvalidOperationException($"invalid register size {size}"),
+			_ => throw new ArgumentException($"invalid register size {size}", nameof(size)),
 		};
 	}
 
@@ -34,7 +34,7 @@ public class Registers
 				BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(index), value);
 				break;
 			default:
-				throw new InvalidOperationException($"invalid register size {size}");
+				throw new ArgumentException($"invalid register size {size}", nameof(size));
 		}
 	}
 
@@ -84,7 +84,7 @@ public class Registers
 		Constants.RegisterTarget.R => 64,
 		Constants.RegisterTarget.IFF1 => 66,
 		Constants.RegisterTarget.IFF2 => 67,
-		_ => throw new InvalidOperationException($"unknown register {register}")
+		_ => throw new ArgumentException($"unknown register {register}", nameof(register))
 	};
 
 	public static Constants.RegisterTarget GetAlternateTarget(Constants.RegisterTarget register) => register switch
