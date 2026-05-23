@@ -1,14 +1,15 @@
 using System.Collections;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using IM800Emu.Core.Bus;
 
 namespace IM800Emu.Core.CPU;
 
 /// <summary>
-///
+/// Implements the 
 /// </summary>
-public class IM800
+public partial class IM800
 {
 	private Registers _registers;
 	private MemoryBus _memoryBus;
@@ -44,22 +45,21 @@ public class IM800
 			{
 				Operation = Constants.Operation.Invalid,
 				BaseAddress = baseAddress,
-				Size = 2,
+				Length = 2,
 			},
 		};
 
+		var fetchResult = _memoryBus.Read(baseAddress, Constants.DataSize.Word);
 
-		var readResult = _memoryBus.Read(baseAddress, Constants.DataSize.Word);
-
-		if (!readResult.IsSuccess)
+		if (!fetchResult.IsSuccess)
 		{
 			result.IsSuccess = false;
-			result.Exception = readResult.Exception;
+			result.Exception = fetchResult.Exception;
 			return result;
 		}
 
-		result.ResultObject.InstructionWord = (ushort)readResult.ResultObject.Data;
-		result.ResultObject.FetchCycles = readResult.ResultObject.Cycles;
+		result.ResultObject.InstructionWord = (ushort)fetchResult.ResultObject.Data;
+		result.ResultObject.FetchCycles = fetchResult.ResultObject.Cycles;
 
 		byte groupSelector = (byte)(result.ResultObject.InstructionWord & 0b11);
 
@@ -124,7 +124,6 @@ public class IM800
 				}
 				break;
 			}
-
 			case 0b11:
 			{
 				byte subgroupSelector = (byte)((result.ResultObject.InstructionWord >> 2) & 0b11);
@@ -146,7 +145,6 @@ public class IM800
 				}
 				break;
 			}
-
 		}
 
 		return result;
@@ -162,103 +160,5 @@ public class IM800
 	public int Execute(in DecodedOperation instruction)
 	{
 		return 0;
-	}
-
-	private void DecodeFormatR(ref Result<DecodedOperation> result)
-	{
-
-	}
-
-	private void DecodeFormatRM(ref Result<DecodedOperation> result)
-	{
-
-	}
-
-	private void DecodeFormatUR(ref Result<DecodedOperation> result)
-	{
-
-	}
-
-	private void DecodeFormatUM(ref Result<DecodedOperation> result)
-	{
-
-	}
-
-	private void DecodeFormatB(ref Result<DecodedOperation> result)
-	{
-
-	}
-
-	private void DecodeFormatOneOff(ref Result<DecodedOperation> result)
-	{
-
-	}
-
-	private void DecodeFormatBlock(ref Result<DecodedOperation> result)
-	{
-
-	}
-
-	private void DecodeFormatSB(ref Result<DecodedOperation> result)
-	{
-
-	}
-
-	/// <summary>
-	/// Decodes a register target from a 3-bit selector
-	/// </summary>
-	/// <param name="selector"></param>
-	/// <param name="size"></param>
-	/// <returns></returns>
-	/// <exception cref="ArgumentException"></exception>
-	private Constants.RegisterTarget DecodeRegister(byte selector, Constants.DataSize size)
-	{
-		if (size == Constants.DataSize.Byte || size == Constants.DataSize.Word)
-		{
-			return selector switch
-			{
-				0b000 => Constants.RegisterTarget.A,
-				0b001 => Constants.RegisterTarget.B,
-				0b010 => Constants.RegisterTarget.C,
-				0b011 => Constants.RegisterTarget.D,
-				0b100 => Constants.RegisterTarget.E,
-				0b101 => Constants.RegisterTarget.H,
-				0b110 => Constants.RegisterTarget.L,
-				_ => throw new ArgumentException($"invalid register selector {selector:X}", nameof(selector)),
-			};
-		}
-		else if (size == Constants.DataSize.Dword)
-		{
-			return selector switch
-			{
-				0b000 => Constants.RegisterTarget.AF,
-				0b001 => Constants.RegisterTarget.BC,
-				0b010 => Constants.RegisterTarget.DE,
-				0b011 => Constants.RegisterTarget.HL,
-				0b100 => Constants.RegisterTarget.IX,
-				0b101 => Constants.RegisterTarget.IY,
-				0b110 => Constants.RegisterTarget.SP,
-				_ => throw new ArgumentException($"invalid register selector {selector:X}", nameof(selector)),
-			};
-		}
-		throw new ArgumentException($"invalid register size {size}", nameof(size));
-	}
-
-	/// <summary>
-	/// Decodes a size from a 2-bit selector
-	/// </summary>
-	/// <param name="selector"></param>
-	/// <returns></returns>
-	/// <exception cref="ArgumentException"></exception>
-	private Constants.DataSize DeocdeSize(byte selector)
-	{
-		return selector switch
-		{
-			0b00 => Constants.DataSize.Byte,
-			0b01 => Constants.DataSize.Word,
-			0b10 => Constants.DataSize.Dword,
-			0b11 => Constants.DataSize.Qword,
-			_ => throw new ArgumentException($"invliad size selector {selector:X}", nameof(selector)),
-		};
 	}
 }

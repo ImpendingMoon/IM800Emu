@@ -6,18 +6,11 @@ namespace IM800Emu.Core.CPU;
 public struct DecodedOperation
 {
 	public Constants.Operation Operation;
-	public Operand? Destination;
-	public Operand? Source;
+	public Operand Destination;
+	public Operand Source;
 	public int FetchCycles;
 	public uint BaseAddress;
-	public uint Size;
+	public uint Length;
 	public ushort InstructionWord;
-
-	public struct Operand
-	{
-		public Constants.DataSize Size;
-		public Constants.RegisterTarget? Register;
-		public uint? Value;
-		public bool Indirect;
-	}
+	public Constants.DataSize DataSize;
 }

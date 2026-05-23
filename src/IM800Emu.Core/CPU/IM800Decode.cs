@@ -1,0 +1,264 @@
+using IM800Emu.Core.Bus;
+
+namespace IM800Emu.Core.CPU;
+
+public partial class IM800
+{
+	private void DecodeFormatR(ref Result<DecodedOperation> decodedOperation)
+	{
+		// 1:0 Group
+		// 7:2 Opcode
+		// 9:8 Size
+		// 12:10 Dest register
+		// 15:13 Src register
+
+		ushort instructionWord = decodedOperation.ResultObject.InstructionWord;
+
+		int opcode = (instructionWord >> 2) & 0b111111;
+		decodedOperation.ResultObject.Operation = opcode switch
+		{
+			0b000000 => Constants.Operation.LD,
+			0b000001 => Constants.Operation.EX,
+			// ...
+			0b000100 => Constants.Operation.ADD,
+			0b000101 => Constants.Operation.ADC,
+			0b000110 => Constants.Operation.SUB,
+			0b000111 => Constants.Operation.SBC,
+			0b001000 => Constants.Operation.AND,
+			0b001001 => Constants.Operation.OR,
+			0b001010 => Constants.Operation.XOR,
+			0b001011 => Constants.Operation.CP,
+			0b001100 => Constants.Operation.TST,
+			// ...
+			0b010000 => Constants.Operation.LEA,
+			0b010001 => Constants.Operation.BIT,
+			0b010010 => Constants.Operation.SET,
+			0b010011 => Constants.Operation.RES,
+			0b010100 => Constants.Operation.RLC,
+			0b010101 => Constants.Operation.RRC,
+			0b010110 => Constants.Operation.RL,
+			0b010111 => Constants.Operation.RR,
+			0b011000 => Constants.Operation.SLA,
+			0b011001 => Constants.Operation.SRA,
+			0b011010 => Constants.Operation.SRL,
+			_ => Constants.Operation.Invalid,
+		};
+
+		if (decodedOperation.ResultObject.Operation == Constants.Operation.Invalid)
+		{
+			decodedOperation.IsSuccess = false;
+			decodedOperation.Exception = new InvalidOperationException($"invalid format R opcode 0x{opcode:X2}");
+			return;
+		}
+
+		int sizeSelector = (instructionWord >> 8) & 0b11;
+		Constants.DataSize size = DeocdeSize(sizeSelector);
+		decodedOperation.ResultObject.DataSize = size;
+
+		if (size == Constants.DataSize.Qword && decodedOperation.ResultObject.Operation != Constants.Operation.LEA)
+		{
+			decodedOperation.IsSuccess = false;
+			decodedOperation.Exception = new InvalidOperationException($"invalid instruction size {size}");
+			return;
+		}
+
+		var destination = new Operand();
+		var source = new Operand();
+
+		// Instructions in this range use the size field for both operands
+		if (opcode < 0b010000)
+		{
+			destination.DataSize = size;
+			source.DataSize = size;
+		}
+		// LEA uses fixed sizes and reinterprets instruction size
+		else if (opcode == 0b010000)
+		{
+			destination.DataSize = Constants.DataSize.Dword;
+			source.DataSize = Constants.DataSize.Word;
+		}
+		// Bit/shift instructions use byte-sized sources
+		else
+		{
+			destination.DataSize = size;
+			source.DataSize = Constants.DataSize.Byte;
+		}
+
+		int destSelector = (instructionWord >> 10) & 0b111;
+
+		if (destSelector == 0b111)
+		{
+			decodedOperation.IsSuccess = false;
+			decodedOperation.Exception = new InvalidOperationException($"destination register cannot be immediate");
+			return;
+		}
+
+		destination.Register = DecodeRegister(destSelector, destination.DataSize);
+
+		int srcSelector = (instructionWord >> 13) & 0b111;
+
+		if (srcSelector == 0b111)
+		{
+			Result<MemoryOperation> immediateResult = FetchImmediate(ref decodedOperation, source.DataSize);
+
+			if (!immediateResult.IsSuccess)
+			{
+				decodedOperation.IsSuccess = false;
+				decodedOperation.Exception = immediateResult.Exception;
+				return;
+			}
+		}
+		else
+		{
+			source.Register = DecodeRegister(srcSelector, source.DataSize);
+		}
+
+		decodedOperation.ResultObject.Destination = destination;
+		decodedOperation.ResultObject.Source = source;
+	}
+
+	private void DecodeFormatRM(ref Result<DecodedOperation> result)
+	{
+		// 1:0 Group
+		// 6:2 Opcode
+		// 7 Direction
+		// 9:8 Size
+		// 12:10 Register
+		// 15:13 Address register
+	}
+
+	private void DecodeFormatUR(ref Result<DecodedOperation> result)
+	{
+		// 1:0 Group
+		// 3:2 Subgroup
+		// 7:4 Opcode
+		// 9:8 Size
+		// 12:10 Register
+		// 15:13 Function
+	}
+
+	private void DecodeFormatUM(ref Result<DecodedOperation> result)
+	{
+		// 1:0 Group
+		// 3:2 Subgroup
+		// 7:4 Opcode
+		// 9:8 Size
+		// 12:10 Address register
+		// 15:13 Function
+	}
+
+	private void DecodeFormatB(ref Result<DecodedOperation> result)
+	{
+		// 1:0 Group
+		// 3:2 Subgroup
+		// 8:4 Opcode
+		// 12:9 Condition
+		// 15:13 Address register
+	}
+
+	private void DecodeFormatOneOff(ref Result<DecodedOperation> result)
+	{
+		// 1:0 Group
+		// 3:2 Subgroup
+		// 7:4 Category
+		// 15:8 Opcode
+	}
+
+	private void DecodeFormatBlock(ref Result<DecodedOperation> result)
+	{
+		// 1:0 Group
+		// 3:2 Subgroup
+		// 7:4 Category
+		// 9:8 Size
+		// 10 Increment
+		// 11 Repeat
+		// 15:12 Opcode
+	}
+
+	private void DecodeFormatSB(ref Result<DecodedOperation> result)
+	{
+		// 1:0 Group
+		// 3:2 Subgroup
+		// 7:4 Opcode
+	}
+
+	/// <summary>
+	/// Decodes a register target from a 3-bit selector
+	/// </summary>
+	/// <param name="selector"></param>
+	/// <param name="size"></param>
+	/// <returns></returns>
+	/// <exception cref="ArgumentException"></exception>
+	private Constants.RegisterTarget DecodeRegister(int selector, Constants.DataSize size)
+	{
+		if (size == Constants.DataSize.Byte || size == Constants.DataSize.Word)
+		{
+			return selector switch
+			{
+				0b000 => Constants.RegisterTarget.A,
+				0b001 => Constants.RegisterTarget.B,
+				0b010 => Constants.RegisterTarget.C,
+				0b011 => Constants.RegisterTarget.D,
+				0b100 => Constants.RegisterTarget.E,
+				0b101 => Constants.RegisterTarget.H,
+				0b110 => Constants.RegisterTarget.L,
+				_ => throw new ArgumentException($"invalid register selector {selector:X}", nameof(selector)),
+			};
+		}
+		else if (size == Constants.DataSize.Dword)
+		{
+			return selector switch
+			{
+				0b000 => Constants.RegisterTarget.AF,
+				0b001 => Constants.RegisterTarget.BC,
+				0b010 => Constants.RegisterTarget.DE,
+				0b011 => Constants.RegisterTarget.HL,
+				0b100 => Constants.RegisterTarget.IX,
+				0b101 => Constants.RegisterTarget.IY,
+				0b110 => Constants.RegisterTarget.SP,
+				_ => throw new ArgumentException($"invalid register selector {selector:X}", nameof(selector)),
+			};
+		}
+		throw new ArgumentException($"invalid register size {size}", nameof(size));
+	}
+
+	/// <summary>
+	/// Decodes a size from a 2-bit selector
+	/// </summary>
+	/// <param name="selector"></param>
+	/// <returns></returns>
+	/// <exception cref="ArgumentException"></exception>
+	private Constants.DataSize DeocdeSize(int selector)
+	{
+		return selector switch
+		{
+			0b00 => Constants.DataSize.Byte,
+			0b01 => Constants.DataSize.Word,
+			0b10 => Constants.DataSize.Dword,
+			0b11 => Constants.DataSize.Qword,
+			_ => throw new ArgumentException($"invalid size selector {selector:X}", nameof(selector)),
+		};
+	}
+
+	private Result<MemoryOperation> FetchImmediate(ref Result<DecodedOperation> result, Constants.DataSize size)
+	{
+		Result<MemoryOperation> readResult = _memoryBus.Read(result.ResultObject.BaseAddress, size);
+
+		if (!readResult.IsSuccess)
+		{
+			result.IsSuccess = false;
+			result.Exception = readResult.Exception;
+			return readResult;
+		}
+
+		result.ResultObject.Length += size switch
+		{
+			Constants.DataSize.Byte => 1,
+			Constants.DataSize.Word => 2,
+			Constants.DataSize.Dword => 4,
+			_ => throw new ArgumentException($"invalid size {size}", nameof(size)),
+		};
+
+		return readResult;
+	}
+}
