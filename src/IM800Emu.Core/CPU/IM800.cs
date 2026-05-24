@@ -1,7 +1,3 @@
-using System.Collections;
-using System.Diagnostics;
-using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 using IM800Emu.Core.Bus;
 
 namespace IM800Emu.Core.CPU;
@@ -11,8 +7,8 @@ namespace IM800Emu.Core.CPU;
 /// </summary>
 public partial class IM800
 {
-	private Registers _registers;
-	private MemoryBus _memoryBus;
+	private readonly Registers _registers;
+	private readonly MemoryBus _memoryBus;
 
 	public IM800(MemoryBus memoryBus)
 	{
@@ -28,7 +24,7 @@ public partial class IM800
 	public Result<DecodedOperation> Decode()
 	{
 		uint pc = _registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
-		return new();
+		return DecodeAt(pc);
 	}
 
 	/// <summary>
@@ -49,7 +45,7 @@ public partial class IM800
 			},
 		};
 
-		var fetchResult = _memoryBus.Read(baseAddress, Constants.DataSize.Word);
+		Result<MemoryOperation> fetchResult = _memoryBus.Read(baseAddress, Constants.DataSize.Word);
 
 		if (!fetchResult.IsSuccess)
 		{

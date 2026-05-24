@@ -15,8 +15,8 @@ public partial class IM800
 		// Use locals because it's annoying to qualify this every time
 		ushort instructionWord = decodedOperation.ResultObject.InstructionWord;
 		ref Constants.Operation operation = ref decodedOperation.ResultObject.Operation;
-		ref var destination = ref decodedOperation.ResultObject.Destination;
-		ref var source = ref decodedOperation.ResultObject.Source;
+		ref Operand destination = ref decodedOperation.ResultObject.Destination;
+		ref Operand source = ref decodedOperation.ResultObject.Source;
 
 		int opcode = (instructionWord >> 2) & 0b111111;
 		operation = opcode switch
@@ -195,7 +195,7 @@ public partial class IM800
 	/// <exception cref="ArgumentException"></exception>
 	private Constants.RegisterTarget DecodeRegister(int selector, Constants.DataSize size)
 	{
-		if (size == Constants.DataSize.Byte || size == Constants.DataSize.Word)
+		if (size is Constants.DataSize.Byte or Constants.DataSize.Word)
 		{
 			return selector switch
 			{

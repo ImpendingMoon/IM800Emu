@@ -1,12 +1,14 @@
-﻿namespace IM800Emu.Core.Machine;
+using IM800Emu.Core.CPU;
+
+namespace IM800Emu.Core.Machine;
 
 /// <summary>
 ///
 /// </summary>
 public class Machine
 {
-	private CPU.IM800 _cpu;
-	private Bus.MemoryBus _memoryBus;
+	private readonly CPU.IM800 _cpu;
+	private readonly Bus.MemoryBus _memoryBus;
 
 	/// <summary>
 	///
@@ -23,11 +25,11 @@ public class Machine
 	/// </summary>
 	public void StepFrame()
 	{
-		var operation = _cpu.Decode();
+		Result<DecodedOperation> operation = _cpu.Decode();
 
 		if (operation.IsSuccess)
 		{
-			_cpu.Execute(operation.ResultObject);
+			_ = _cpu.Execute(operation.ResultObject);
 		}
 	}
 }
