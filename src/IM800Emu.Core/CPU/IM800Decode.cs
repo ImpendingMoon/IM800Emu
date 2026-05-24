@@ -12,10 +12,14 @@ public partial class IM800
 		// 12:10 Dest register
 		// 15:13 Src register
 
+		// Use locals because it's annoying to qualify this every time
 		ushort instructionWord = decodedOperation.ResultObject.InstructionWord;
+		ref Constants.Operation operation = ref decodedOperation.ResultObject.Operation;
+		ref var destination = ref decodedOperation.ResultObject.Destination;
+		ref var source = ref decodedOperation.ResultObject.Source;
 
 		int opcode = (instructionWord >> 2) & 0b111111;
-		decodedOperation.ResultObject.Operation = opcode switch
+		operation = opcode switch
 		{
 			0b000000 => Constants.Operation.LD,
 			0b000001 => Constants.Operation.EX,
@@ -44,26 +48,28 @@ public partial class IM800
 			_ => Constants.Operation.Invalid,
 		};
 
-		if (decodedOperation.ResultObject.Operation == Constants.Operation.Invalid)
+		if (operation == Constants.Operation.Invalid)
 		{
 			decodedOperation.IsSuccess = false;
 			decodedOperation.Exception = new InvalidOperationException($"invalid format R opcode 0x{opcode:X2}");
+			// Eventually we'll have onError debugger callbacks that will have options to continue or return here.
+			// For now just return.
 			return;
 		}
 
 		int sizeSelector = (instructionWord >> 8) & 0b11;
-		Constants.DataSize size = DeocdeSize(sizeSelector);
+		Constants.DataSize size = DecodeSize(sizeSelector);
 		decodedOperation.ResultObject.DataSize = size;
 
-		if (size == Constants.DataSize.Qword && decodedOperation.ResultObject.Operation != Constants.Operation.LEA)
+		// 
+		if (size == Constants.DataSize.Qword && operation != Constants.Operation.LEA)
 		{
 			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"invalid instruction size {size}");
+			decodedOperation.Exception = new InvalidOperationException(
+				$"invalid size {size} for operation {operation}"
+			);
 			return;
 		}
-
-		var destination = new Operand();
-		var source = new Operand();
 
 		// Instructions in this range use the size field for both operands
 		if (opcode < 0b010000)
@@ -77,7 +83,7 @@ public partial class IM800
 			destination.DataSize = Constants.DataSize.Dword;
 			source.DataSize = Constants.DataSize.Word;
 		}
-		// Bit/shift instructions use byte-sized sources
+		// Bit/shift instructions use byte-sized sources (source is shift amount)
 		else
 		{
 			destination.DataSize = size;
@@ -86,6 +92,7 @@ public partial class IM800
 
 		int destSelector = (instructionWord >> 10) & 0b111;
 
+		// Immediate selector
 		if (destSelector == 0b111)
 		{
 			decodedOperation.IsSuccess = false;
@@ -112,9 +119,6 @@ public partial class IM800
 		{
 			source.Register = DecodeRegister(srcSelector, source.DataSize);
 		}
-
-		decodedOperation.ResultObject.Destination = destination;
-		decodedOperation.ResultObject.Source = source;
 	}
 
 	private void DecodeFormatRM(ref Result<DecodedOperation> result)
@@ -228,7 +232,7 @@ public partial class IM800
 	/// <param name="selector"></param>
 	/// <returns></returns>
 	/// <exception cref="ArgumentException"></exception>
-	private Constants.DataSize DeocdeSize(int selector)
+	private Constants.DataSize DecodeSize(int selector)
 	{
 		return selector switch
 		{
