@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/IM800Emu.App/IM800Emu.App.csproj" />
     <Project Path="src/IM800Emu.Core/IM800Emu.Core.csproj" />
