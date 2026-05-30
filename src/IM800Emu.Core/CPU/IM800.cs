@@ -93,28 +93,7 @@ public partial class IM800
 					}
 					case 0b11:
 					{
-						byte miscSelector = (byte)((result.ResultObject.InstructionWord >> 4) & 0b1111);
-						switch (miscSelector)
-						{
-							case 0b0000:
-							{
-								DecodeFormatOneOff(ref result);
-								break;
-							}
-							case 0b0001:
-							{
-								DecodeFormatBlock(ref result);
-								break;
-							}
-							default:
-							{
-								result.IsSuccess = false;
-								result.Exception = new InvalidOperationException(
-									$"invalid misc format selector 0x{miscSelector:X2}"
-								);
-								break;
-							}
-						}
+						DecodeFormatM(ref result);
 						break;
 					}
 				}
@@ -128,6 +107,11 @@ public partial class IM800
 					case 0b00:
 					{
 						DecodeFormatSB(ref result);
+						break;
+					}
+					case 0b01:
+					{
+						DecodeFormatBlock(ref result);
 						break;
 					}
 					default:

@@ -6,6 +6,6 @@ namespace IM800Emu.Core.Bus;
 /// </summary>
 public struct MemoryOperation
 {
-	public int Data;
+	public uint Data;
 	public int Cycles;
 }

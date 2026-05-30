@@ -2,6 +2,25 @@ namespace IM800Emu.Core.CPU;
 
 public static class Constants
 {
+	public enum RegisterSelector
+	{
+		A = 0b000,
+		B = 0b001,
+		C = 0b010,
+		D = 0b011,
+		E = 0b100,
+		H = 0b101,
+		L = 0b110,
+		Immediate = 0b111,
+		AF = 0b000,
+		BC = 0b001,
+		DE = 0b010,
+		HL = 0b011,
+		IX = 0b100,
+		IY = 0b101,
+		SP = 0b110,
+	}
+
 	public enum Operation
 	{
 		Invalid,
@@ -86,6 +105,7 @@ public static class Constants
 
 	public enum RegisterTarget
 	{
+		None,
 		A, F, B, C, D, E, H, L,
 		AF, BC, DE, HL, IX, IY, SP,
 		A_, F_, B_, C_, D_, E_, H_, L_,
