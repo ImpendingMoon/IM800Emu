@@ -540,11 +540,118 @@ public partial class IM800
 
 	private void DecodeFormatB(Result<DecodedOperation> decodeResult)
 	{
+		Debug.Assert(decodeResult.ResultObject is not null);
+
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 8:4 Opcode
 		// 12:9 Condition
 		// 15:13 Address register
+
+		decodeResult.ResultObject.Destination = new();
+
+		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b11111;
+
+		switch (opcode)
+		{
+			case 0b00000:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.JR;
+				decodeResult.ResultObject.DataSize = Constants.DataSize.Byte;
+				break;
+			}
+			case 0b00001:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.JR;
+				decodeResult.ResultObject.DataSize = Constants.DataSize.Word;
+				break;
+			}
+			case 0b00010:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.JP;
+				decodeResult.ResultObject.DataSize = Constants.DataSize.Dword;
+				break;
+			}
+			case 0b00100:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.CR;
+				decodeResult.ResultObject.DataSize = Constants.DataSize.Byte;
+				break;
+			}
+			case 0b00101:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.CR;
+				decodeResult.ResultObject.DataSize = Constants.DataSize.Word;
+				break;
+			}
+			case 0b00110:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.CALL;
+				decodeResult.ResultObject.DataSize = Constants.DataSize.Dword;
+				break;
+			}
+			case 0b01000:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.RET;
+				break;
+			}
+			case 0b01001:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.RETI;
+				break;
+			}
+			case 0b01010:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.RETN;
+				break;
+			}
+			default:
+			{
+				decodeResult.ResultObject.Operation = Constants.Operation.Invalid;
+				decodeResult.ResultObject.DataSize = Constants.DataSize.Dword;
+				break;
+			}
+		}
+
+		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
+		{
+			var exception = new InvalidOperationException($"invalid format B opcode 0x{opcode:X2}");
+			decodeResult.Exceptions.Add(exception);
+			return;
+		}
+
+		int conditionSelector = (decodeResult.ResultObject.InstructionWord >> 9) & 0b1111;
+		Result<Constants.Condition> conditionResult = DecodeCondition(conditionSelector);
+
+		if (!conditionResult.IsSuccess)
+		{
+			decodeResult.Exceptions.AddRange(conditionResult.Exceptions);
+			return;
+		}
+
+		decodeResult.ResultObject.Condition = conditionResult.ResultObject;
+
+		int registerSelector = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
+
+		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
+		{
+			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, decodeResult.ResultObject.DataSize);
+
+			if (!immediateResult.IsSuccess)
+			{
+				decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
+				return;
+			}
+
+			decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject!.Data;
+		}
+		else
+		{
+			decodeResult.ResultObject.Destination.Register = DecodeRegister(
+				registerSelector,
+				decodeResult.ResultObject.Destination.DataSize
+			);
+		}
 	}
 
 	private void DecodeFormatM(Result<DecodedOperation> decodeResult)
@@ -629,6 +736,75 @@ public partial class IM800
 			0b11 => Constants.DataSize.Qword,
 			_ => throw new ArgumentException($"invalid size selector {selector:X}", nameof(selector)),
 		};
+	}
+
+	private static Result<Constants.Condition> DecodeCondition(int selector)
+	{
+		// Fully out of range
+		if (selector is < 0 or > 0b1111)
+		{
+			throw new ArgumentException($"invalid condition selector {selector:X2}", nameof(selector));
+		}
+
+		Result<Constants.Condition> result = new();
+
+		switch (selector)
+		{
+			case 0b0000:
+			{
+				result.ResultObject = Constants.Condition.NotZero;
+				break;
+			}
+			case 0b0001:
+			{
+				result.ResultObject = Constants.Condition.Zero;
+				break;
+			}
+			case 0b0010:
+			{
+				result.ResultObject = Constants.Condition.NoCarry;
+				break;
+			}
+			case 0b0011:
+			{
+				result.ResultObject = Constants.Condition.Carry;
+				break;
+			}
+			case 0b0100:
+			{
+				result.ResultObject = Constants.Condition.ParityOdd_NoOverflow;
+				break;
+			}
+			case 0b0101:
+			{
+				result.ResultObject = Constants.Condition.ParityEven_Overflow;
+				break;
+			}
+			case 0b0110:
+			{
+				result.ResultObject = Constants.Condition.Plus;
+				break;
+			}
+			case 0b0111:
+			{
+				result.ResultObject = Constants.Condition.Minus;
+				break;
+			}
+			case 0b1111:
+			{
+				result.ResultObject = Constants.Condition.Always;
+				break;
+			}
+			default:
+			{
+				// Invalid but in range, possible in guest
+				var exception = new InvalidOperationException($"invalid condition selector {selector:X2}");
+				result.Exceptions.Add(exception);
+				break;
+			}
+		}
+
+		return result;
 	}
 
 	private Result<MemoryOperation> FetchImmediate(Result<DecodedOperation> decodeResult, Constants.DataSize size)

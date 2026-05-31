@@ -14,4 +14,5 @@ public class DecodedOperation
 	public ushort InstructionWord { get; set; }
 	// Only LEA uses this field, but there's no particularly good way to get around having it in the instruction.
 	public Constants.DataSize DataSize { get; set; }
+	public Constants.Condition Condition { get; set; }
 }

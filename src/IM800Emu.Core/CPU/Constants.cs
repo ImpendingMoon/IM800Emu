@@ -112,4 +112,17 @@ public static class Constants
 		AF_, BC_, DE_, HL_, IX_, IY_, SP_,
 		PC, I, R, IFF1, IFF2,
 	}
+
+	public enum Condition
+	{
+		Always = 0,
+		NotZero,
+		Zero,
+		NoCarry,
+		Carry,
+		ParityOdd_NoOverflow,
+		ParityEven_Overflow,
+		Plus,
+		Minus,
+	}
 }
