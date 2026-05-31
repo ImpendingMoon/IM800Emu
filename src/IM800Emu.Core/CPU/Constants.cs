@@ -23,7 +23,7 @@ public static class Constants
 
 	public enum Operation
 	{
-		Invalid,
+		Invalid = 0,
 		Halted,
 		Interrupted,
 		LD,
@@ -97,7 +97,7 @@ public static class Constants
 
 	public enum DataSize
 	{
-		Byte,
+		Byte = 0,
 		Word,
 		Dword,
 		Qword,
@@ -105,7 +105,7 @@ public static class Constants
 
 	public enum RegisterTarget
 	{
-		None,
+		None = 0,
 		A, F, B, C, D, E, H, L,
 		AF, BC, DE, HL, IX, IY, SP,
 		A_, F_, B_, C_, D_, E_, H_, L_,

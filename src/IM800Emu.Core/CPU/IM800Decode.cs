@@ -1,25 +1,25 @@
 using IM800Emu.Core.Bus;
+using System.Diagnostics;
 
 namespace IM800Emu.Core.CPU;
 
 public partial class IM800
 {
-	private void DecodeFormatR(ref Result<DecodedOperation> decodedOperation)
+	private void DecodeFormatR(Result<DecodedOperation> decodeResult)
 	{
+		Debug.Assert(decodeResult.ResultObject is not null);
+
 		// 1:0 Group
 		// 7:2 Opcode
 		// 9:8 Size
 		// 12:10 Dest register
 		// 15:13 Src register
 
-		// Use locals because it's annoying to qualify this every time
-		ushort instructionWord = decodedOperation.ResultObject.InstructionWord;
-		ref Constants.Operation operation = ref decodedOperation.ResultObject.Operation;
-		ref Operand destination = ref decodedOperation.ResultObject.Destination;
-		ref Operand source = ref decodedOperation.ResultObject.Source;
+		decodeResult.ResultObject.Destination = new();
+		decodeResult.ResultObject.Source = new();
 
-		int opcode = (instructionWord >> 2) & 0b111111;
-		operation = opcode switch
+		int opcode = (decodeResult.ResultObject.InstructionWord >> 2) & 0b111111;
+		decodeResult.ResultObject.Operation = opcode switch
 		{
 			0b000000 => Constants.Operation.LD,
 			0b000001 => Constants.Operation.EX,
@@ -48,80 +48,89 @@ public partial class IM800
 			_ => Constants.Operation.Invalid,
 		};
 
-		if (operation == Constants.Operation.Invalid)
+		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"invalid format R opcode 0x{opcode:X2}");
-			// Eventually we'll have onError debugger callbacks that will have options to continue or return here.
-			// For now just return.
+			var exception = new InvalidOperationException($"invalid format R opcode 0x{opcode:X2}");
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
-		int sizeSelector = (instructionWord >> 8) & 0b11;
+		int sizeSelector = (decodeResult.ResultObject.InstructionWord >> 8) & 0b11;
 		Constants.DataSize size = DecodeSize(sizeSelector);
-		decodedOperation.ResultObject.DataSize = size;
+		decodeResult.ResultObject.DataSize = size;
 
 		// Only LEA can use a Qword operand size
-		if (size == Constants.DataSize.Qword && operation != Constants.Operation.LEA)
+		if (size == Constants.DataSize.Qword && decodeResult.ResultObject.Operation != Constants.Operation.LEA)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException(
-				$"invalid size {size} for operation {operation}"
+			var exception = new InvalidOperationException(
+				$"invalid size {size} for decodeResult.ResultObject.Operation {decodeResult.ResultObject.Operation}"
 			);
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
 		// Instructions in this range use the size field for both operands
 		if (opcode < 0b010000)
 		{
-			destination.DataSize = size;
-			source.DataSize = size;
+			decodeResult.ResultObject.Destination.DataSize = size;
+			decodeResult.ResultObject.Source.DataSize = size;
 		}
 		// LEA uses fixed sizes and reinterprets instruction size
 		else if (opcode == 0b010000)
 		{
-			destination.DataSize = Constants.DataSize.Dword;
-			source.DataSize = Constants.DataSize.Word;
+			decodeResult.ResultObject.Destination.DataSize = Constants.DataSize.Dword;
+			decodeResult.ResultObject.Source.DataSize = Constants.DataSize.Word;
 		}
 		// Bit/shift instructions use byte-sized sources (source is shift amount)
 		else
 		{
-			destination.DataSize = size;
-			source.DataSize = Constants.DataSize.Byte;
+			decodeResult.ResultObject.Destination.DataSize = size;
+			decodeResult.ResultObject.Source.DataSize = Constants.DataSize.Byte;
 		}
 
-		int destSelector = (instructionWord >> 10) & 0b111;
+		int destSelector = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
 
 		if (destSelector == (int)Constants.RegisterSelector.Immediate)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"destination register cannot be immediate");
+			var exception = new InvalidOperationException($"destination register cannot be immediate");
+
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
-		destination.Register = DecodeRegister(destSelector, destination.DataSize);
+		decodeResult.ResultObject.Destination.Register = DecodeRegister(
+			destSelector,
+			decodeResult.ResultObject.Destination.DataSize
+		);
 
-		int srcSelector = (instructionWord >> 13) & 0b111;
+		int srcSelector = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
 
 		if (srcSelector == (int)Constants.RegisterSelector.Immediate)
 		{
-			Result<MemoryOperation> immediateResult = FetchImmediate(ref decodedOperation, source.DataSize);
+			Result<MemoryOperation> immediateResult = FetchImmediate(
+				decodeResult,
+				decodeResult.ResultObject.Source.DataSize
+			);
 
 			if (!immediateResult.IsSuccess)
 			{
-				decodedOperation.IsSuccess = false;
-				decodedOperation.Exception = immediateResult.Exception;
+				decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
 				return;
 			}
 		}
 		else
 		{
-			source.Register = DecodeRegister(srcSelector, source.DataSize);
+			decodeResult.ResultObject.Source.Register = DecodeRegister(
+				srcSelector,
+				decodeResult.ResultObject.Source.DataSize
+			);
 		}
 	}
 
-	private void DecodeFormatRM(ref Result<DecodedOperation> decodedOperation)
+	private void DecodeFormatRM(Result<DecodedOperation> decodeResult)
 	{
+		Debug.Assert(decodeResult.ResultObject is not null);
+
 		// 1:0 Group
 		// 6:2 Opcode
 		// 7 Direction
@@ -129,14 +138,11 @@ public partial class IM800
 		// 12:10 Register
 		// 15:13 Address register
 
-		// Use locals because it's annoying to qualify this every time
-		ushort instructionWord = decodedOperation.ResultObject.InstructionWord;
-		ref Constants.Operation operation = ref decodedOperation.ResultObject.Operation;
-		ref Operand destination = ref decodedOperation.ResultObject.Destination;
-		ref Operand source = ref decodedOperation.ResultObject.Source;
+		decodeResult.ResultObject.Destination = new();
+		decodeResult.ResultObject.Source = new();
 
-		int opcode = (instructionWord >> 2) & 0b11111;
-		operation = opcode switch
+		int opcode = (decodeResult.ResultObject.InstructionWord >> 2) & 0b11111;
+		decodeResult.ResultObject.Operation = opcode switch
 		{
 			0b00000 => Constants.Operation.LD,
 			0b00001 => Constants.Operation.EX,
@@ -166,174 +172,203 @@ public partial class IM800
 			_ => Constants.Operation.Invalid,
 		};
 
-		if (operation == Constants.Operation.Invalid)
+		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"invalid format RM opcode 0x{opcode:X2}");
-			// Eventually we'll have onError debugger callbacks that will have options to continue or return here.
-			// For now just return.
+			var exception = new InvalidOperationException($"invalid format RM opcode 0x{opcode:X2}");
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
-		bool store = ((instructionWord >> 7) & 1) == 1;
+		bool store = ((decodeResult.ResultObject.InstructionWord >> 7) & 1) == 1;
 
-		int sizeSelector = (instructionWord >> 8) & 0b11;
+		int sizeSelector = (decodeResult.ResultObject.InstructionWord >> 8) & 0b11;
 		Constants.DataSize size = DecodeSize(sizeSelector);
-		decodedOperation.ResultObject.DataSize = size;
+		decodeResult.ResultObject.DataSize = size;
 
 		// Only LEA can use a Qword operand size
-		if (size == Constants.DataSize.Qword && operation != Constants.Operation.LEA)
+		if (size == Constants.DataSize.Qword && decodeResult.ResultObject.Operation != Constants.Operation.LEA)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException(
-				$"invalid size {size} for operation {operation}"
+			var exception = new InvalidOperationException(
+				$"invalid size {size} for decodeResult.ResultObject.Operation {decodeResult.ResultObject.Operation}"
 			);
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
 		// Instructions in this range use the size field for both operands
 		if (opcode < 0b10000)
 		{
-			destination.DataSize = size;
-			source.DataSize = size;
+			decodeResult.ResultObject.Destination.DataSize = size;
+			decodeResult.ResultObject.Source.DataSize = size;
 		}
 		// LEA uses fixed sizes and reinterprets instruction size
 		else if (opcode == 0b10000)
 		{
-			destination.DataSize = Constants.DataSize.Dword;
-			source.DataSize = Constants.DataSize.Word;
+			decodeResult.ResultObject.Destination.DataSize = Constants.DataSize.Dword;
+			decodeResult.ResultObject.Source.DataSize = Constants.DataSize.Word;
 		}
-		// Bit/shift instructions use byte-sized sources (source is shift amount)
+		// Bit/shift instructions use byte-sized sources (decodeResult.ResultObject.Source is shift amount)
 		else
 		{
-			destination.DataSize = size;
-			source.DataSize = Constants.DataSize.Byte;
+			decodeResult.ResultObject.Destination.DataSize = size;
+			decodeResult.ResultObject.Source.DataSize = Constants.DataSize.Byte;
 		}
 
-		int registerSelector = (instructionWord >> 10) & 0b111;
-		int addressRegisterSelector = (instructionWord >> 12) & 0b111;
+		int registerSelector = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
+		int addressRegisterSelector = (decodeResult.ResultObject.InstructionWord >> 12) & 0b111;
 
-		if (registerSelector == (int)Constants.RegisterSelector.Immediate && addressRegisterSelector == (int)Constants.RegisterSelector.Immediate)
+		if (
+			registerSelector == (int)Constants.RegisterSelector.Immediate
+			&& addressRegisterSelector == (int)Constants.RegisterSelector.Immediate
+		)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"cannot use an immediate value for both register and address register");
+			var exception = new InvalidOperationException(
+				$"cannot use an immediate value for both register and address register"
+			);
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
 		if (store)
 		{
-			// Address register is the destination
-			destination.Indirect = true;
+			// Address register is the decodeResult.ResultObject.Destination
+			decodeResult.ResultObject.Destination.Indirect = true;
 
 			if (addressRegisterSelector == (int)Constants.RegisterSelector.Immediate)
 			{
-				Result<MemoryOperation> immediateResult = FetchImmediate(ref decodedOperation, Constants.DataSize.Dword);
+				Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, Constants.DataSize.Dword);
 
 				if (!immediateResult.IsSuccess)
 				{
-					decodedOperation.IsSuccess = false;
-					decodedOperation.Exception = immediateResult.Exception;
+					decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
 					return;
 				}
 
-				destination.Data = immediateResult.ResultObject.Data;
+				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject!.Data;
 			}
 			else
 			{
-				destination.Register = DecodeRegister(addressRegisterSelector, Constants.DataSize.Dword);
-				if (addressRegisterSelector is (int)Constants.RegisterSelector.IX or (int)Constants.RegisterSelector.IY or (int)Constants.RegisterSelector.SP)
+				decodeResult.ResultObject.Destination.Register = DecodeRegister(
+					addressRegisterSelector,
+					Constants.DataSize.Dword
+				);
+
+				if (
+					addressRegisterSelector
+					is (int)Constants.RegisterSelector.IX
+					or (int)Constants.RegisterSelector.IY
+					or (int)Constants.RegisterSelector.SP
+				)
 				{
-					Result<MemoryOperation> displacementResult = FetchImmediate(ref decodedOperation, Constants.DataSize.Word);
+					Result<MemoryOperation> displacementResult = FetchImmediate(decodeResult, Constants.DataSize.Word);
 
 					if (!displacementResult.IsSuccess)
 					{
-						decodedOperation.IsSuccess = false;
-						decodedOperation.Exception = displacementResult.Exception;
+						decodeResult.Exceptions.AddRange(displacementResult.Exceptions);
 						return;
 					}
 
-					destination.Displacement = (ushort)displacementResult.ResultObject.Data;
+					decodeResult.ResultObject.Destination.Displacement = (ushort)displacementResult.ResultObject!.Data;
 				}
 			}
 
 			// Register is the source
 			if (registerSelector == (int)Constants.RegisterSelector.Immediate)
 			{
-				Result<MemoryOperation> immediateResult = FetchImmediate(ref decodedOperation, source.DataSize);
+				Result<MemoryOperation> immediateResult = FetchImmediate(
+					decodeResult,
+					decodeResult.ResultObject.Source.DataSize
+				);
 
 				if (!immediateResult.IsSuccess)
 				{
-					decodedOperation.IsSuccess = false;
-					decodedOperation.Exception = immediateResult.Exception;
+					decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
 					return;
 				}
 
-				source.Data = immediateResult.ResultObject.Data;
+				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject!.Data;
 			}
 			else
 			{
-				source.Register = DecodeRegister(registerSelector, source.DataSize);
+				decodeResult.ResultObject.Source.Register = DecodeRegister(
+					registerSelector,
+					decodeResult.ResultObject.Source.DataSize
+				);
 			}
 		}
 		else
 		{
 			// Address register is the source
-			source.Indirect = true;
+			decodeResult.ResultObject.Source.Indirect = true;
 
 			if (addressRegisterSelector == (int)Constants.RegisterSelector.Immediate)
 			{
-				Result<MemoryOperation> immediateResult = FetchImmediate(ref decodedOperation, Constants.DataSize.Dword);
+				Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, Constants.DataSize.Dword);
 
 				if (!immediateResult.IsSuccess)
 				{
-					decodedOperation.IsSuccess = false;
-					decodedOperation.Exception = immediateResult.Exception;
+					decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
 					return;
 				}
 
-				source.Data = immediateResult.ResultObject.Data;
+				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject!.Data;
 			}
 			else
 			{
-				source.Register = DecodeRegister(addressRegisterSelector, Constants.DataSize.Dword);
-				if (addressRegisterSelector is (int)Constants.RegisterSelector.IX or (int)Constants.RegisterSelector.IY or (int)Constants.RegisterSelector.SP)
+				decodeResult.ResultObject.Source.Register = DecodeRegister(
+					addressRegisterSelector,
+					Constants.DataSize.Dword
+				);
+
+				if (
+					addressRegisterSelector
+					is (int)Constants.RegisterSelector.IX
+					or (int)Constants.RegisterSelector.IY
+					or (int)Constants.RegisterSelector.SP
+				)
 				{
-					Result<MemoryOperation> displacementResult = FetchImmediate(ref decodedOperation, Constants.DataSize.Word);
+					Result<MemoryOperation> displacementResult = FetchImmediate(decodeResult, Constants.DataSize.Word);
 
 					if (!displacementResult.IsSuccess)
 					{
-						decodedOperation.IsSuccess = false;
-						decodedOperation.Exception = displacementResult.Exception;
+						decodeResult.Exceptions.AddRange(displacementResult.Exceptions);
 						return;
 					}
 
-					source.Displacement = (ushort)displacementResult.ResultObject.Data;
+					decodeResult.ResultObject.Source.Displacement = (ushort)displacementResult.ResultObject!.Data;
 				}
 			}
 
-			// Register is the destination
+			// Register is the decodeResult.ResultObject.Destination
 			if (registerSelector == (int)Constants.RegisterSelector.Immediate)
 			{
-				Result<MemoryOperation> immediateResult = FetchImmediate(ref decodedOperation, destination.DataSize);
+				Result<MemoryOperation> immediateResult = FetchImmediate(
+					decodeResult,
+					decodeResult.ResultObject.Destination.DataSize
+				);
 
 				if (!immediateResult.IsSuccess)
 				{
-					decodedOperation.IsSuccess = false;
-					decodedOperation.Exception = immediateResult.Exception;
+					decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
 					return;
 				}
 
-				destination.Data = immediateResult.ResultObject.Data;
+				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject!.Data;
 			}
 			else
 			{
-				destination.Register = DecodeRegister(registerSelector, source.DataSize);
+				decodeResult.ResultObject.Destination.Register = DecodeRegister(
+					registerSelector,
+					decodeResult.ResultObject.Source.DataSize
+				);
 			}
 		}
 	}
 
-	private void DecodeFormatUR(ref Result<DecodedOperation> decodedOperation)
+	private void DecodeFormatUR(Result<DecodedOperation> decodeResult)
 	{
+		Debug.Assert(decodeResult.ResultObject is not null);
+
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
@@ -341,18 +376,14 @@ public partial class IM800
 		// 12:10 Register
 		// 15:13 Function
 
-		// Use locals because it's annoying to qualify this every time
-		ushort instructionWord = decodedOperation.ResultObject.InstructionWord;
-		ref Constants.Operation operation = ref decodedOperation.ResultObject.Operation;
-		ref Operand destination = ref decodedOperation.ResultObject.Destination;
-
-		destination.Indirect = true;
-
-		int opcode = (instructionWord >> 4) & 0b1111;
-		int function = (instructionWord >> 13) & 0b111;
+		decodeResult.ResultObject.Destination = new()
+		{
+			Indirect = true
+		};
+		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b1111;
+		int function = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
 		int operationSelector = (opcode << 3) | function;
-
-		operation = operationSelector switch
+		decodeResult.ResultObject.Operation = operationSelector switch
 		{
 			0b0000_000 => Constants.Operation.PUSH,
 			0b0000_001 => Constants.Operation.POP,
@@ -369,41 +400,48 @@ public partial class IM800
 			_ => Constants.Operation.Invalid,
 		};
 
-		if (operation == Constants.Operation.Invalid)
+		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}");
-			// Eventually we'll have onError debugger callbacks that will have options to continue or return here.
-			// For now just return.
+			var exception = new InvalidOperationException(
+				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
-		int sizeSelector = (instructionWord >> 8) & 0b11;
+		int sizeSelector = (decodeResult.ResultObject.InstructionWord >> 8) & 0b11;
 		Constants.DataSize size = DecodeSize(sizeSelector);
-		decodedOperation.ResultObject.DataSize = size;
-		destination.DataSize = size;
+		decodeResult.ResultObject.DataSize = size;
+		decodeResult.ResultObject.Destination.DataSize = size;
 
 		if (size == Constants.DataSize.Qword)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"invalid size {size} for operation {operation}");
+			var exception = new InvalidOperationException(
+				$"invalid size {size} for decodeResult.ResultObject.Operation {decodeResult.ResultObject.Operation}"
+			);
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
-		int registerSelector = (instructionWord >> 10) & 0b111;
+		int registerSelector = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
 
 		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"Format UR cannot use an immediate value");
+			var exception = new InvalidOperationException($"Format UR cannot use an immediate value");
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
-		destination.Register = DecodeRegister(registerSelector, destination.DataSize);
+		decodeResult.ResultObject.Destination.Register = DecodeRegister(
+			registerSelector,
+			decodeResult.ResultObject.Destination.DataSize
+		);
 	}
 
-	private void DecodeFormatUM(ref Result<DecodedOperation> decodedOperation)
+	private void DecodeFormatUM(Result<DecodedOperation> decodeResult)
 	{
+		Debug.Assert(decodeResult.ResultObject is not null);
+
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
@@ -411,18 +449,15 @@ public partial class IM800
 		// 12:10 Function
 		// 15:13 Address register
 
-		// Use locals because it's annoying to qualify this every time
-		ushort instructionWord = decodedOperation.ResultObject.InstructionWord;
-		ref Constants.Operation operation = ref decodedOperation.ResultObject.Operation;
-		ref Operand destination = ref decodedOperation.ResultObject.Destination;
+		decodeResult.ResultObject.Destination = new()
+		{
+			Indirect = true
+		};
 
-		destination.Indirect = true;
-
-		int opcode = (instructionWord >> 4) & 0b1111;
-		int function = (instructionWord >> 10) & 0b111;
+		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b1111;
+		int function = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
 		int operationSelector = (opcode << 3) | function;
-
-		operation = operationSelector switch
+		decodeResult.ResultObject.Operation = operationSelector switch
 		{
 			0b0000_000 => Constants.Operation.PUSH,
 			0b0000_001 => Constants.Operation.POP,
@@ -439,62 +474,71 @@ public partial class IM800
 			_ => Constants.Operation.Invalid,
 		};
 
-		if (operation == Constants.Operation.Invalid)
+		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}");
-			// Eventually we'll have onError debugger callbacks that will have options to continue or return here.
-			// For now just return.
+			var exception = new InvalidOperationException(
+				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
-		int sizeSelector = (instructionWord >> 8) & 0b11;
+		int sizeSelector = (decodeResult.ResultObject.InstructionWord >> 8) & 0b11;
 		Constants.DataSize size = DecodeSize(sizeSelector);
-		decodedOperation.ResultObject.DataSize = size;
-		destination.DataSize = size;
+		decodeResult.ResultObject.DataSize = size;
+		decodeResult.ResultObject.Destination.DataSize = size;
 
 		if (size == Constants.DataSize.Qword)
 		{
-			decodedOperation.IsSuccess = false;
-			decodedOperation.Exception = new InvalidOperationException($"invalid size {size} for operation {operation}");
+			var exception = new InvalidOperationException(
+				$"invalid size {size} for decodeResult.ResultObject.Operation {decodeResult.ResultObject.Operation}"
+			);
+			decodeResult.Exceptions.Add(exception);
 			return;
 		}
 
-		int addressRegisterSelector = (instructionWord >> 13) & 0b111;
+		int addressRegisterSelector = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
 
 		if (addressRegisterSelector == (int)Constants.RegisterSelector.Immediate)
 		{
-			Result<MemoryOperation> immediateResult = FetchImmediate(ref decodedOperation, Constants.DataSize.Dword);
+			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, Constants.DataSize.Dword);
 
 			if (!immediateResult.IsSuccess)
 			{
-				decodedOperation.IsSuccess = false;
-				decodedOperation.Exception = immediateResult.Exception;
+				decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
 				return;
 			}
 
-			destination.Data = immediateResult.ResultObject.Data;
+			decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject!.Data;
 		}
 		else
 		{
-			destination.Register = DecodeRegister(addressRegisterSelector, Constants.DataSize.Dword);
-			if (addressRegisterSelector is (int)Constants.RegisterSelector.IX or (int)Constants.RegisterSelector.IY or (int)Constants.RegisterSelector.SP)
+			decodeResult.ResultObject.Destination.Register = DecodeRegister(
+				addressRegisterSelector,
+				Constants.DataSize.Dword
+			);
+
+			if (
+				addressRegisterSelector
+				is (int)Constants.RegisterSelector.IX
+				or (int)Constants.RegisterSelector.IY
+				or (int)Constants.RegisterSelector.SP
+			)
 			{
-				Result<MemoryOperation> displacementResult = FetchImmediate(ref decodedOperation, Constants.DataSize.Word);
+				Result<MemoryOperation> displacementResult = FetchImmediate(decodeResult, Constants.DataSize.Word);
 
 				if (!displacementResult.IsSuccess)
 				{
-					decodedOperation.IsSuccess = false;
-					decodedOperation.Exception = displacementResult.Exception;
+					decodeResult.Exceptions.AddRange(displacementResult.Exceptions);
 					return;
 				}
 
-				destination.Displacement = (ushort)displacementResult.ResultObject.Data;
+				decodeResult.ResultObject.Destination.Displacement = (ushort)displacementResult.ResultObject!.Data;
 			}
 		}
 	}
 
-	private void DecodeFormatB(ref Result<DecodedOperation> result)
+	private void DecodeFormatB(Result<DecodedOperation> decodeResult)
 	{
 		// 1:0 Group
 		// 3:2 Subgroup
@@ -503,7 +547,7 @@ public partial class IM800
 		// 15:13 Address register
 	}
 
-	private void DecodeFormatM(ref Result<DecodedOperation> result)
+	private void DecodeFormatM(Result<DecodedOperation> decodeResult)
 	{
 		// 1:0 Group
 		// 3:2 Subgroup
@@ -511,14 +555,14 @@ public partial class IM800
 		// 15:8 Function
 	}
 
-	private void DecodeFormatSB(ref Result<DecodedOperation> result)
+	private void DecodeFormatSB(Result<DecodedOperation> decodeResult)
 	{
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
 	}
 
-	private void DecodeFormatBlock(ref Result<DecodedOperation> result)
+	private void DecodeFormatBLK(Result<DecodedOperation> decodeResult)
 	{
 		// 1:0 Group
 		// 3:2 Subgroup
@@ -535,8 +579,8 @@ public partial class IM800
 	/// <param name="selector"></param>
 	/// <param name="size"></param>
 	/// <returns></returns>
-	/// <exception cref="ArgumentException"></exception>
-	private Constants.RegisterTarget DecodeRegister(int selector, Constants.DataSize size)
+	/// <exception c="ArgumentException"></exception>
+	private static Constants.RegisterTarget DecodeRegister(int selector, Constants.DataSize size)
 	{
 		if (size is Constants.DataSize.Byte or Constants.DataSize.Word)
 		{
@@ -574,8 +618,8 @@ public partial class IM800
 	/// </summary>
 	/// <param name="selector"></param>
 	/// <returns></returns>
-	/// <exception cref="ArgumentException"></exception>
-	private Constants.DataSize DecodeSize(int selector)
+	/// <exception c="ArgumentException"></exception>
+	private static Constants.DataSize DecodeSize(int selector)
 	{
 		return selector switch
 		{
@@ -587,18 +631,15 @@ public partial class IM800
 		};
 	}
 
-	private Result<MemoryOperation> FetchImmediate(ref Result<DecodedOperation> result, Constants.DataSize size)
+	private Result<MemoryOperation> FetchImmediate(Result<DecodedOperation> decodeResult, Constants.DataSize size)
 	{
-		Result<MemoryOperation> readResult = _memoryBus.Read(result.ResultObject.BaseAddress, size);
+		Debug.Assert(decodeResult.ResultObject is not null);
 
-		if (!readResult.IsSuccess)
-		{
-			result.IsSuccess = false;
-			result.Exception = readResult.Exception;
-			return readResult;
-		}
+		Result<MemoryOperation> readResult = _memoryBus.Read(decodeResult.ResultObject.BaseAddress, size);
 
-		result.ResultObject.Length += size switch
+		// Maybe need to check success before this?
+
+		decodeResult.ResultObject.Length += size switch
 		{
 			Constants.DataSize.Byte => 1,
 			Constants.DataSize.Word => 2,

@@ -1,10 +1,10 @@
 namespace IM800Emu.Core.CPU;
 
-public struct Operand
+public class Operand
 {
-	public Constants.DataSize DataSize;
-	public bool Indirect;
-	public Constants.RegisterTarget Register;
-	public uint Data;
-	public ushort Displacement;
+	public Constants.DataSize DataSize { get; set; }
+	public bool Indirect { get; set; }
+	public Constants.RegisterTarget Register { get; set; }
+	public uint Data { get; set; }
+	public ushort Displacement { get; set; }
 }

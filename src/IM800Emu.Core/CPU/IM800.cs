@@ -1,4 +1,5 @@
 using IM800Emu.Core.Bus;
+using System.Diagnostics;
 
 namespace IM800Emu.Core.CPU;
 
@@ -34,12 +35,10 @@ public partial class IM800
 	/// <returns></returns>
 	public Result<DecodedOperation> DecodeAt(uint baseAddress)
 	{
-		var result = new Result<DecodedOperation>()
+		var decodeResult = new Result<DecodedOperation>()
 		{
-			IsSuccess = true,
 			ResultObject = new()
 			{
-				Operation = Constants.Operation.Invalid,
 				BaseAddress = baseAddress,
 				Length = 2,
 			},
@@ -49,51 +48,52 @@ public partial class IM800
 
 		if (!fetchResult.IsSuccess)
 		{
-			result.IsSuccess = false;
-			result.Exception = fetchResult.Exception;
-			return result;
+			decodeResult.Exceptions.AddRange(fetchResult.Exceptions);
+			return decodeResult;
 		}
 
-		result.ResultObject.InstructionWord = (ushort)fetchResult.ResultObject.Data;
-		result.ResultObject.FetchCycles = fetchResult.ResultObject.Cycles;
+		Debug.Assert(fetchResult.ResultObject is not null);
 
-		byte groupSelector = (byte)(result.ResultObject.InstructionWord & 0b11);
+		decodeResult.ResultObject.InstructionWord = (ushort)fetchResult.ResultObject.Data;
+		decodeResult.ResultObject.FetchCycles = fetchResult.ResultObject.Cycles;
+
+		byte groupSelector = (byte)(decodeResult.ResultObject.InstructionWord & 0b11);
 
 		switch (groupSelector)
 		{
 			case 0b00:
 			{
-				DecodeFormatR(ref result);
+				DecodeFormatR(decodeResult);
 				break;
 			}
 			case 0b01:
 			{
-				DecodeFormatRM(ref result);
+				DecodeFormatRM(decodeResult);
 				break;
 			}
 			case 0b10:
 			{
-				byte subgroupSelector = (byte)((result.ResultObject.InstructionWord >> 2) & 0b11);
+				byte subgroupSelector = (byte)((decodeResult.ResultObject.InstructionWord >> 2) & 0b11);
 				switch (subgroupSelector)
 				{
 					case 0b00:
 					{
-						DecodeFormatUR(ref result);
+						DecodeFormatUR(decodeResult);
 						break;
 					}
 					case 0b01:
 					{
-						DecodeFormatUM(ref result);
+						DecodeFormatUM(decodeResult);
 						break;
 					}
 					case 0b10:
 					{
-						DecodeFormatB(ref result);
+						DecodeFormatB(decodeResult);
 						break;
 					}
 					case 0b11:
 					{
-						DecodeFormatM(ref result);
+						DecodeFormatM(decodeResult);
 						break;
 					}
 				}
@@ -101,25 +101,25 @@ public partial class IM800
 			}
 			case 0b11:
 			{
-				byte subgroupSelector = (byte)((result.ResultObject.InstructionWord >> 2) & 0b11);
+				byte subgroupSelector = (byte)((decodeResult.ResultObject.InstructionWord >> 2) & 0b11);
 				switch (subgroupSelector)
 				{
 					case 0b00:
 					{
-						DecodeFormatSB(ref result);
+						DecodeFormatSB(decodeResult);
 						break;
 					}
 					case 0b01:
 					{
-						DecodeFormatBlock(ref result);
+						DecodeFormatBLK(decodeResult);
 						break;
 					}
 					default:
 					{
-						result.IsSuccess = false;
-						result.Exception = new InvalidOperationException(
-									$"invalid special subgroup selector 0x{subgroupSelector:X2}"
-								);
+						var exception = new InvalidOperationException(
+							$"invalid special subgroup selector 0x{subgroupSelector:X2}"
+						);
+						decodeResult.Exceptions.Add(exception);
 						break;
 					}
 				}
@@ -127,7 +127,7 @@ public partial class IM800
 			}
 		}
 
-		return result;
+		return decodeResult;
 	}
 
 	/// <summary>
