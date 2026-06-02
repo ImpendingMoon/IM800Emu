@@ -1,16 +1,36 @@
 namespace IM800Emu.Core;
 
 /// <summary>
-/// For actions where failure is an expected result, and the usual try/catch is slow or harder to read.
+/// For actions where failure is an expected result.
 /// </summary>
 public class Result
 {
-	public bool IsSuccess => Exceptions.Count == 0;
-	public List<Exception> Exceptions { get; set; } = [];
+	private readonly List<string> _errors = [];
+
+	public bool IsSuccess => Errors.Count == 0;
+	public IReadOnlyList<string> Errors => _errors;
+
+	/// <summary>
+	/// Adds an error string to this result
+	/// </summary>
+	/// <param name="error"></param>
+	public void AddError(string error)
+	{
+		_errors.Add(error);
+	}
+
+	/// <summary>
+	/// Appends the errors of the other result to this result
+	/// </summary>
+	/// <param name="other"></param>
+	public void Combine(Result other)
+	{
+		_errors.AddRange(other._errors);
+	}
 }
 
 /// <summary>
-/// For actions where failure is an expected result, and the usual try/catch is slow or harder to read.
+/// For actions where failure is an expected result.
 /// Includes a member for returning an object.
 /// This object is intentionally allowed to have a value when not successful, in the case where an operation may
 /// be partially successful and/or may need to continue from a previous state.

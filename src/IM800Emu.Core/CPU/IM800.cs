@@ -48,7 +48,7 @@ public partial class IM800
 
 		if (!fetchResult.IsSuccess)
 		{
-			decodeResult.Exceptions.AddRange(fetchResult.Exceptions);
+			decodeResult.Combine(fetchResult);
 			return decodeResult;
 		}
 
@@ -116,10 +116,7 @@ public partial class IM800
 					}
 					default:
 					{
-						var exception = new InvalidOperationException(
-							$"invalid special subgroup selector 0x{subgroupSelector:X2}"
-						);
-						decodeResult.Exceptions.Add(exception);
+						decodeResult.AddError($"invalid special subgroup selector 0x{subgroupSelector:X2}");
 						break;
 					}
 				}

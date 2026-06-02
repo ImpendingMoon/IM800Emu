@@ -50,8 +50,7 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			var exception = new InvalidOperationException($"invalid format R opcode 0x{opcode:X2}");
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"invalid format R opcode 0x{opcode:X2}");
 			return;
 		}
 
@@ -62,10 +61,7 @@ public partial class IM800
 		// Only LEA can use a Qword operand size
 		if (size == Constants.DataSize.Qword && decodeResult.ResultObject.Operation != Constants.Operation.LEA)
 		{
-			var exception = new InvalidOperationException(
-				$"invalid size {size} for decodeResult.ResultObject.Operation {decodeResult.ResultObject.Operation}"
-			);
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
 			return;
 		}
 
@@ -88,24 +84,22 @@ public partial class IM800
 			decodeResult.ResultObject.Source.DataSize = Constants.DataSize.Byte;
 		}
 
-		int destSelector = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
+		int destinationSelector = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
 
-		if (destSelector == (int)Constants.RegisterSelector.Immediate)
+		if (destinationSelector == (int)Constants.RegisterSelector.Immediate)
 		{
-			var exception = new InvalidOperationException($"destination register cannot be immediate");
-
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"destination register cannot be immediate");
 			return;
 		}
 
 		decodeResult.ResultObject.Destination.Register = DecodeRegister(
-			destSelector,
+			destinationSelector,
 			decodeResult.ResultObject.Destination.DataSize
 		);
 
-		int srcSelector = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
+		int sourceSelector = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
 
-		if (srcSelector == (int)Constants.RegisterSelector.Immediate)
+		if (sourceSelector == (int)Constants.RegisterSelector.Immediate)
 		{
 			Result<MemoryOperation> immediateResult = FetchImmediate(
 				decodeResult,
@@ -114,14 +108,14 @@ public partial class IM800
 
 			if (!immediateResult.IsSuccess)
 			{
-				decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
+				decodeResult.Combine(immediateResult);
 				return;
 			}
 		}
 		else
 		{
 			decodeResult.ResultObject.Source.Register = DecodeRegister(
-				srcSelector,
+				sourceSelector,
 				decodeResult.ResultObject.Source.DataSize
 			);
 		}
@@ -174,8 +168,7 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			var exception = new InvalidOperationException($"invalid format RM opcode 0x{opcode:X2}");
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"invalid format RM opcode 0x{opcode:X2}");
 			return;
 		}
 
@@ -188,10 +181,7 @@ public partial class IM800
 		// Only LEA can use a Qword operand size
 		if (size == Constants.DataSize.Qword && decodeResult.ResultObject.Operation != Constants.Operation.LEA)
 		{
-			var exception = new InvalidOperationException(
-				$"invalid size {size} for decodeResult.ResultObject.Operation {decodeResult.ResultObject.Operation}"
-			);
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
 			return;
 		}
 
@@ -207,7 +197,7 @@ public partial class IM800
 			decodeResult.ResultObject.Destination.DataSize = Constants.DataSize.Dword;
 			decodeResult.ResultObject.Source.DataSize = Constants.DataSize.Word;
 		}
-		// Bit/shift instructions use byte-sized sources (decodeResult.ResultObject.Source is shift amount)
+		// Bit/shift instructions use byte-sized sources (source is shift amount)
 		else
 		{
 			decodeResult.ResultObject.Destination.DataSize = size;
@@ -222,10 +212,7 @@ public partial class IM800
 			&& addressRegisterSelector == (int)Constants.RegisterSelector.Immediate
 		)
 		{
-			var exception = new InvalidOperationException(
-				$"cannot use an immediate value for both register and address register"
-			);
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"cannot use an immediate value for both register and address register");
 			return;
 		}
 
@@ -240,7 +227,7 @@ public partial class IM800
 
 				if (!immediateResult.IsSuccess)
 				{
-					decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
+					decodeResult.Combine(immediateResult);
 					return;
 				}
 
@@ -264,7 +251,7 @@ public partial class IM800
 
 					if (!displacementResult.IsSuccess)
 					{
-						decodeResult.Exceptions.AddRange(displacementResult.Exceptions);
+						decodeResult.Combine(displacementResult);
 						return;
 					}
 
@@ -282,7 +269,7 @@ public partial class IM800
 
 				if (!immediateResult.IsSuccess)
 				{
-					decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
+					decodeResult.Combine(immediateResult);
 					return;
 				}
 
@@ -307,7 +294,7 @@ public partial class IM800
 
 				if (!immediateResult.IsSuccess)
 				{
-					decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
+					decodeResult.Combine(immediateResult);
 					return;
 				}
 
@@ -331,7 +318,7 @@ public partial class IM800
 
 					if (!displacementResult.IsSuccess)
 					{
-						decodeResult.Exceptions.AddRange(displacementResult.Exceptions);
+						decodeResult.Combine(displacementResult);
 						return;
 					}
 
@@ -349,7 +336,7 @@ public partial class IM800
 
 				if (!immediateResult.IsSuccess)
 				{
-					decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
+					decodeResult.Combine(immediateResult);
 					return;
 				}
 
@@ -385,27 +372,24 @@ public partial class IM800
 		int operationSelector = (opcode << 3) | function;
 		decodeResult.ResultObject.Operation = operationSelector switch
 		{
-			0b0000_000 => Constants.Operation.PUSH,
-			0b0000_001 => Constants.Operation.POP,
-			0b0000_010 => Constants.Operation.EXH,
-			0b0000_011 => Constants.Operation.EXT,
-			0b0000_100 => Constants.Operation.INC,
-			0b0000_101 => Constants.Operation.DEC,
-			0b0000_110 => Constants.Operation.NEG,
-			0b0000_111 => Constants.Operation.CPL,
-			0b0001_000 => Constants.Operation.MLT,
-			0b0001_001 => Constants.Operation.DIV,
-			0b0001_010 => Constants.Operation.SDIV,
-			0b0001_011 => Constants.Operation.EX_Alt,
+			0b0000_000 => Constants.Operation.EX_Alt,
+			0b0000_001 => Constants.Operation.PUSH,
+			0b0000_010 => Constants.Operation.POP,
+			0b0000_100 => Constants.Operation.EXH,
+			0b0000_101 => Constants.Operation.EXT,
+			0b0000_110 => Constants.Operation.INC,
+			0b0000_111 => Constants.Operation.DEC,
+			0b0001_000 => Constants.Operation.CPL,
+			0b0001_001 => Constants.Operation.NEG,
+			0b0001_010 => Constants.Operation.MLT,
+			0b0001_011 => Constants.Operation.DIV,
+			0b0001_100 => Constants.Operation.SDIV,
 			_ => Constants.Operation.Invalid,
 		};
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			var exception = new InvalidOperationException(
-				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
-			);
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}");
 			return;
 		}
 
@@ -416,10 +400,7 @@ public partial class IM800
 
 		if (size == Constants.DataSize.Qword)
 		{
-			var exception = new InvalidOperationException(
-				$"invalid size {size} for decodeResult.ResultObject.Operation {decodeResult.ResultObject.Operation}"
-			);
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
 			return;
 		}
 
@@ -427,8 +408,7 @@ public partial class IM800
 
 		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
 		{
-			var exception = new InvalidOperationException($"Format UR cannot use an immediate value");
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"Format UR cannot use an immediate value");
 			return;
 		}
 
@@ -459,27 +439,21 @@ public partial class IM800
 		int operationSelector = (opcode << 3) | function;
 		decodeResult.ResultObject.Operation = operationSelector switch
 		{
-			0b0000_000 => Constants.Operation.PUSH,
-			0b0000_001 => Constants.Operation.POP,
-			0b0000_010 => Constants.Operation.EXH,
-			0b0000_011 => Constants.Operation.EXT,
-			0b0000_100 => Constants.Operation.INC,
-			0b0000_101 => Constants.Operation.DEC,
-			0b0000_110 => Constants.Operation.NEG,
-			0b0000_111 => Constants.Operation.CPL,
-			0b0001_000 => Constants.Operation.MLT,
-			0b0001_001 => Constants.Operation.DIV,
-			0b0001_010 => Constants.Operation.SDIV,
-			0b0001_011 => Constants.Operation.EX_Alt,
+			0b0000_100 => Constants.Operation.EXH,
+			0b0000_101 => Constants.Operation.EXT,
+			0b0000_110 => Constants.Operation.INC,
+			0b0000_111 => Constants.Operation.DEC,
+			0b0001_000 => Constants.Operation.CPL,
+			0b0001_001 => Constants.Operation.NEG,
+			0b0001_010 => Constants.Operation.MLT,
+			0b0001_011 => Constants.Operation.DIV,
+			0b0001_100 => Constants.Operation.SDIV,
 			_ => Constants.Operation.Invalid,
 		};
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			var exception = new InvalidOperationException(
-				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
-			);
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}");
 			return;
 		}
 
@@ -490,10 +464,7 @@ public partial class IM800
 
 		if (size == Constants.DataSize.Qword)
 		{
-			var exception = new InvalidOperationException(
-				$"invalid size {size} for decodeResult.ResultObject.Operation {decodeResult.ResultObject.Operation}"
-			);
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
 			return;
 		}
 
@@ -505,7 +476,7 @@ public partial class IM800
 
 			if (!immediateResult.IsSuccess)
 			{
-				decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
+				decodeResult.Combine(immediateResult);
 				return;
 			}
 
@@ -529,7 +500,7 @@ public partial class IM800
 
 				if (!displacementResult.IsSuccess)
 				{
-					decodeResult.Exceptions.AddRange(displacementResult.Exceptions);
+					decodeResult.Combine(displacementResult);
 					return;
 				}
 
@@ -595,16 +566,6 @@ public partial class IM800
 				decodeResult.ResultObject.Operation = Constants.Operation.RET;
 				break;
 			}
-			case 0b01001:
-			{
-				decodeResult.ResultObject.Operation = Constants.Operation.RETI;
-				break;
-			}
-			case 0b01010:
-			{
-				decodeResult.ResultObject.Operation = Constants.Operation.RETN;
-				break;
-			}
 			default:
 			{
 				decodeResult.ResultObject.Operation = Constants.Operation.Invalid;
@@ -615,8 +576,7 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			var exception = new InvalidOperationException($"invalid format B opcode 0x{opcode:X2}");
-			decodeResult.Exceptions.Add(exception);
+			decodeResult.AddError($"invalid format B opcode 0x{opcode:X2}");
 			return;
 		}
 
@@ -625,7 +585,7 @@ public partial class IM800
 
 		if (!conditionResult.IsSuccess)
 		{
-			decodeResult.Exceptions.AddRange(conditionResult.Exceptions);
+			decodeResult.Combine(conditionResult);
 			return;
 		}
 
@@ -633,13 +593,19 @@ public partial class IM800
 
 		int registerSelector = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
 
+		if (decodeResult.ResultObject.Operation == Constants.Operation.RET && registerSelector != 0)
+		{
+			decodeResult.AddError($"RET must have a register selector of 0");
+			return;
+		}
+
 		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
 		{
 			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, decodeResult.ResultObject.DataSize);
 
 			if (!immediateResult.IsSuccess)
 			{
-				decodeResult.Exceptions.AddRange(immediateResult.Exceptions);
+				decodeResult.Combine(immediateResult);
 				return;
 			}
 
@@ -656,17 +622,120 @@ public partial class IM800
 
 	private void DecodeFormatM(Result<DecodedOperation> decodeResult)
 	{
+		Debug.Assert(decodeResult.ResultObject is not null);
+
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
 		// 15:8 Function
+
+		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b1111;
+		int function = (decodeResult.ResultObject.InstructionWord >> 8) & 0b11111111;
+		int operationSelector = (opcode << 8) | function;
+
+		decodeResult.ResultObject.Operation = operationSelector switch
+		{
+			0b0000_00000000 => Constants.Operation.SCF,
+			0b0000_00000001 => Constants.Operation.CCF,
+			0b0000_00000010 => Constants.Operation.DAA,
+			0b0000_00000011 => Constants.Operation.RLD,
+			0b0000_00000100 => Constants.Operation.RRD,
+			0b0000_00000101 => Constants.Operation.RST,
+			0b0001_00000000 => Constants.Operation.EXX,
+			0b0001_00000001 => Constants.Operation.EXI,
+			0b0001_00000010 => Constants.Operation.EI,
+			0b0001_00000011 => Constants.Operation.DI,
+			0b0001_00000100 => Constants.Operation.IM1,
+			0b0001_00000101 => Constants.Operation.IM2,
+			0b0001_00000110 => Constants.Operation.LDI,
+			0b0001_00000111 => Constants.Operation.RETI,
+			0b0001_00001000 => Constants.Operation.RETN,
+			0b0001_00001001 => Constants.Operation.HALT,
+			0b0001_00001010 => Constants.Operation.LDAR,
+			0b0001_00001011 => Constants.Operation.LDRA,
+			_ => Constants.Operation.Invalid,
+		};
+
+		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
+		{
+			decodeResult.AddError($"invalid format M opcode and function 0x{opcode:X2}, 0x{function:X2}");
+			return;
+		}
+
+		// Some instructions have additional data
+		if (decodeResult.ResultObject.Operation == Constants.Operation.LDI)
+		{
+			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, Constants.DataSize.Dword);
+
+			if (!immediateResult.IsSuccess)
+			{
+				decodeResult.Combine(immediateResult);
+				return;
+			}
+
+			decodeResult.ResultObject.Destination = new()
+			{
+				DataSize = Constants.DataSize.Dword,
+				Data = immediateResult.ResultObject!.Data,
+			};
+		}
+		else if (decodeResult.ResultObject.Operation == Constants.Operation.RST)
+		{
+			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, Constants.DataSize.Byte);
+
+			if (!immediateResult.IsSuccess)
+			{
+				decodeResult.Combine(immediateResult);
+				return;
+			}
+
+			decodeResult.ResultObject.Destination = new()
+			{
+				DataSize = Constants.DataSize.Byte,
+				Data = immediateResult.ResultObject!.Data,
+			};
+		}
 	}
 
 	private void DecodeFormatSB(Result<DecodedOperation> decodeResult)
 	{
+		Debug.Assert(decodeResult.ResultObject is not null);
+
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
+
+		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b1111;
+
+		decodeResult.ResultObject.Operation = opcode switch
+		{
+			0b0000 => Constants.Operation.NOP,
+			0b0001 => Constants.Operation.DJNZ,
+			0b0010 => Constants.Operation.JAZ,
+			0b0011 => Constants.Operation.JANZ,
+			_ => Constants.Operation.Invalid,
+		};
+
+		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
+		{
+			decodeResult.AddError($"invalid format SB opcode 0x{opcode:X2}");
+			return;
+		}
+
+		// NOP is truly 1-byte, the others use the upper byte as an immediate
+		if (decodeResult.ResultObject.Operation == Constants.Operation.NOP)
+		{
+			decodeResult.ResultObject.Length = 1;
+		}
+		else
+		{
+			uint data = (uint)(decodeResult.ResultObject.InstructionWord >> 8);
+			decodeResult.ResultObject.Destination = new()
+			{
+				DataSize = Constants.DataSize.Byte,
+				Data = data,
+			};
+		}
 	}
 
 	private void DecodeFormatBLK(Result<DecodedOperation> decodeResult)
@@ -743,7 +812,7 @@ public partial class IM800
 		// Fully out of range
 		if (selector is < 0 or > 0b1111)
 		{
-			throw new ArgumentException($"invalid condition selector {selector:X2}", nameof(selector));
+			throw new ArgumentException($"invalid condition selector {selector:X}", nameof(selector));
 		}
 
 		Result<Constants.Condition> result = new();
@@ -798,8 +867,7 @@ public partial class IM800
 			default:
 			{
 				// Invalid but in range, possible in guest
-				var exception = new InvalidOperationException($"invalid condition selector {selector:X2}");
-				result.Exceptions.Add(exception);
+				result.AddError($"invalid condition selector {selector:X}");
 				break;
 			}
 		}
