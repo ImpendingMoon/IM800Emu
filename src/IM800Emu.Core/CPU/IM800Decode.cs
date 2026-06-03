@@ -255,7 +255,7 @@ public partial class IM800
 						return;
 					}
 
-					decodeResult.ResultObject.Destination.Displacement = (ushort)displacementResult.ResultObject!.Data;
+					decodeResult.ResultObject.Destination.Displacement = (short)displacementResult.ResultObject!.Data;
 				}
 			}
 
@@ -322,7 +322,7 @@ public partial class IM800
 						return;
 					}
 
-					decodeResult.ResultObject.Source.Displacement = (ushort)displacementResult.ResultObject!.Data;
+					decodeResult.ResultObject.Source.Displacement = (short)displacementResult.ResultObject!.Data;
 				}
 			}
 
@@ -504,7 +504,7 @@ public partial class IM800
 					return;
 				}
 
-				decodeResult.ResultObject.Destination.Displacement = (ushort)displacementResult.ResultObject!.Data;
+				decodeResult.ResultObject.Destination.Displacement = (short)displacementResult.ResultObject!.Data;
 			}
 		}
 	}
@@ -740,6 +740,8 @@ public partial class IM800
 
 	private void DecodeFormatBLK(Result<DecodedOperation> decodeResult)
 	{
+		Debug.Assert(decodeResult.ResultObject is not null);
+
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
@@ -747,6 +749,43 @@ public partial class IM800
 		// 10 Increment
 		// 11 Repeat
 		// 15:12 Function
+
+		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b1111;
+		int function = (decodeResult.ResultObject.InstructionWord >> 12) & 0b111;
+		int operationSelector = (opcode << 3) | function;
+
+		decodeResult.ResultObject.Operation = operationSelector switch
+		{
+			0b0000_000 => Constants.Operation.BLD,
+			0b0000_001 => Constants.Operation.BCP,
+			0b0000_010 => Constants.Operation.BTST,
+			0b0000_011 => Constants.Operation.BIN,
+			0b0000_100 => Constants.Operation.BOUT,
+			_ => Constants.Operation.Invalid,
+		};
+
+		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
+		{
+			decodeResult.AddError($"invalid format BLK opcode and function 0x{opcode:X2}, 0x{function:X2}");
+			return;
+		}
+
+		int sizeSelector = (decodeResult.ResultObject.InstructionWord >> 8) & 0b11;
+		Constants.DataSize size = DecodeSize(sizeSelector);
+
+		if (size is Constants.DataSize.Dword or Constants.DataSize.Qword)
+		{
+			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
+			return;
+		}
+
+		decodeResult.ResultObject.DataSize = size;
+
+		bool increment = ((decodeResult.ResultObject.InstructionWord >> 10) & 1) != 0;
+		bool repeat = ((decodeResult.ResultObject.InstructionWord >> 11) & 1) != 0;
+
+		decodeResult.ResultObject.Increment = increment;
+		decodeResult.ResultObject.Repeat = repeat;
 	}
 
 	/// <summary>

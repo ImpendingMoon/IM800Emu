@@ -97,7 +97,8 @@ public static class Constants
 
 	public enum DataSize
 	{
-		Byte = 0,
+		None = 0,
+		Byte,
 		Word,
 		Dword,
 		Qword,
