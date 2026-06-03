@@ -29,7 +29,7 @@ public class Machine
 
 		if (operation.IsSuccess)
 		{
-			_ = _cpu.Execute(operation.ResultObject);
+			_ = _cpu.Execute(operation.ResultObject!);
 		}
 	}
 }

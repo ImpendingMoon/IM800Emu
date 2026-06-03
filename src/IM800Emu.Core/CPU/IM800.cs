@@ -4,7 +4,7 @@ using System.Diagnostics;
 namespace IM800Emu.Core.CPU;
 
 /// <summary>
-/// Implements the 
+/// Implements the IM800 ISA. Split into several files: IM800.cs, IM800Decode.cs, and IM800Execute.cs
 /// </summary>
 public partial class IM800
 {
@@ -18,8 +18,7 @@ public partial class IM800
 	}
 
 	/// <summary>
-	/// Decodes the next operation to execute. Includes interrupts, halt
-	/// states, and the instruction at PC.
+	/// Decodes the next operation to execute. Includes interrupts, halt states, and the instruction at PC.
 	/// </summary>
 	/// <returns></returns>
 	public Result<DecodedOperation> Decode()
@@ -29,7 +28,7 @@ public partial class IM800
 	}
 
 	/// <summary>
-	/// 
+	/// Decodes the data at a given address as an instruction.
 	/// </summary>
 	/// <param name="baseAddress"></param>
 	/// <returns></returns>
@@ -128,14 +127,88 @@ public partial class IM800
 	}
 
 	/// <summary>
-	/// Executes a decoded operation. Expects the operation to come from
-	/// Decode, and may produce incorrect results when used with another
-	/// operation.
+	/// Executes a decoded operation. Expects the operation to come from Decode, and may produce incorrect results when
+	/// used with another operation.
 	/// </summary>
-	/// <param name="instruction"></param>
-	/// <returns></returns>
-	public int Execute(in DecodedOperation instruction)
+	/// <param name="operation"></param>
+	/// <returns>A result with the number of cycles taken to execute</returns>
+	public Result<int> Execute(DecodedOperation operation)
 	{
-		return 0;
+		Result<int> executeResult = operation.Operation switch
+		{
+			Constants.Operation.Invalid => ExecuteInvalid(operation),
+			Constants.Operation.Halted => ExecuteHalted(operation),
+			Constants.Operation.Interrupted => ExecuteInterrupted(operation),
+			Constants.Operation.LD => ExecuteLD(operation),
+			Constants.Operation.EX => ExecuteEX(operation),
+			Constants.Operation.PUSH => ExecutePUSH(operation),
+			Constants.Operation.POP => ExecutePOP(operation),
+			Constants.Operation.EXH => ExecuteEXH(operation),
+			Constants.Operation.LEA => ExecuteLEA(operation),
+			Constants.Operation.EX_Alt => ExecuteEX_Alt(operation),
+			Constants.Operation.EXX => ExecuteEXX(operation),
+			Constants.Operation.EXI => ExecuteEXI(operation),
+			Constants.Operation.IN_OUT => ExecuteIN_OUT(operation),
+			Constants.Operation.ADD => ExecuteADD(operation),
+			Constants.Operation.ADC => ExecuteADC(operation),
+			Constants.Operation.SUB => ExecuteSUB(operation),
+			Constants.Operation.SBC => ExecuteSBC(operation),
+			Constants.Operation.CP => ExecuteCP(operation),
+			Constants.Operation.INC => ExecuteINC(operation),
+			Constants.Operation.DEC => ExecuteDEC(operation),
+			Constants.Operation.NEG => ExecuteNEG(operation),
+			Constants.Operation.EXT => ExecuteEXT(operation),
+			Constants.Operation.MLT => ExecuteMLT(operation),
+			Constants.Operation.DIV => ExecuteDIV(operation),
+			Constants.Operation.SDIV => ExecuteSDIV(operation),
+			Constants.Operation.DAA => ExecuteDAA(operation),
+			Constants.Operation.AND => ExecuteAND(operation),
+			Constants.Operation.OR => ExecuteOR(operation),
+			Constants.Operation.XOR => ExecuteXOR(operation),
+			Constants.Operation.TST => ExecuteTST(operation),
+			Constants.Operation.CPL => ExecuteCPL(operation),
+			Constants.Operation.BIT => ExecuteBIT(operation),
+			Constants.Operation.SET => ExecuteSET(operation),
+			Constants.Operation.RES => ExecuteRES(operation),
+			Constants.Operation.RLC => ExecuteRLC(operation),
+			Constants.Operation.RRC => ExecuteRRC(operation),
+			Constants.Operation.RL => ExecuteRL(operation),
+			Constants.Operation.RR => ExecuteRR(operation),
+			Constants.Operation.SLA => ExecuteSLA(operation),
+			Constants.Operation.SRA => ExecuteSRA(operation),
+			Constants.Operation.SRL => ExecuteSRL(operation),
+			Constants.Operation.RLD => ExecuteRLD(operation),
+			Constants.Operation.RRD => ExecuteRRD(operation),
+			Constants.Operation.NOP => ExecuteNOP(operation),
+			Constants.Operation.JP => ExecuteJP(operation),
+			Constants.Operation.JR => ExecuteJR(operation),
+			Constants.Operation.DJNZ => ExecuteDJNZ(operation),
+			Constants.Operation.JAZ => ExecuteJAZ(operation),
+			Constants.Operation.JANZ => ExecuteJANZ(operation),
+			Constants.Operation.CALL => ExecuteCALL(operation),
+			Constants.Operation.CR => ExecuteCR(operation),
+			Constants.Operation.RET => ExecuteRET(operation),
+			Constants.Operation.RETI => ExecuteRETI(operation),
+			Constants.Operation.RETN => ExecuteRETN(operation),
+			Constants.Operation.RST => ExecuteRST(operation),
+			Constants.Operation.SCF => ExecuteSCF(operation),
+			Constants.Operation.CCF => ExecuteCCF(operation),
+			Constants.Operation.EI => ExecuteEI(operation),
+			Constants.Operation.DI => ExecuteDI(operation),
+			Constants.Operation.IM1 => ExecuteIM1(operation),
+			Constants.Operation.IM2 => ExecuteIM2(operation),
+			Constants.Operation.HALT => ExecuteHALT(operation),
+			Constants.Operation.LDI => ExecuteLDI(operation),
+			Constants.Operation.LDAR => ExecuteLDAR(operation),
+			Constants.Operation.LDRA => ExecuteLDRA(operation),
+			Constants.Operation.BLD => ExecuteBLD(operation),
+			Constants.Operation.BCP => ExecuteBCP(operation),
+			Constants.Operation.BTST => ExecuteBTST(operation),
+			Constants.Operation.BIN => ExecuteBIN(operation),
+			Constants.Operation.BOUT => ExecuteBOUT(operation),
+			_ => throw new NotImplementedException($"Execute{operation.Operation} does not exist"),
+		};
+
+		return executeResult;
 	}
 }
