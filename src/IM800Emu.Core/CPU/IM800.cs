@@ -34,14 +34,12 @@ public partial class IM800
 	/// <returns></returns>
 	public Result<DecodedOperation> DecodeAt(uint baseAddress)
 	{
-		var decodeResult = new Result<DecodedOperation>()
+		DecodedOperation resultObject = new()
 		{
-			ResultObject = new()
-			{
-				BaseAddress = baseAddress,
-				Length = 2,
-			},
+			BaseAddress = baseAddress,
+			Length = 2,
 		};
+		Result<DecodedOperation> decodeResult = new(resultObject);
 
 		Result<MemoryOperation> fetchResult = _memoryBus.Read(baseAddress, Constants.DataSize.Word);
 

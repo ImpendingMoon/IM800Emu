@@ -32,11 +32,14 @@ public class Result
 /// <summary>
 /// For actions where failure is an expected result.
 /// Includes a member for returning an object.
-/// This object is intentionally allowed to have a value when not successful, in the case where an operation may
-/// be partially successful and/or may need to continue from a previous state.
 /// </summary>
 /// <typeparam name="T">Type of the result object</typeparam>
 public class Result<T> : Result
 {
-	public T? ResultObject { get; set; }
+	public Result(T result)
+	{
+		ResultObject = result;
+	}
+
+	public T ResultObject { get; set; }
 }

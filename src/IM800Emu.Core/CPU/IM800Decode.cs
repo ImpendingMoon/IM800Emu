@@ -1,5 +1,4 @@
 using IM800Emu.Core.Bus;
-using System.Diagnostics;
 
 namespace IM800Emu.Core.CPU;
 
@@ -7,8 +6,6 @@ public partial class IM800
 {
 	private void DecodeFormatR(Result<DecodedOperation> decodeResult)
 	{
-		Debug.Assert(decodeResult.ResultObject is not null);
-
 		// 1:0 Group
 		// 7:2 Opcode
 		// 9:8 Size
@@ -123,8 +120,6 @@ public partial class IM800
 
 	private void DecodeFormatRM(Result<DecodedOperation> decodeResult)
 	{
-		Debug.Assert(decodeResult.ResultObject is not null);
-
 		// 1:0 Group
 		// 6:2 Opcode
 		// 7 Direction
@@ -231,7 +226,7 @@ public partial class IM800
 					return;
 				}
 
-				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject!.Data;
+				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
 			}
 			else
 			{
@@ -255,7 +250,7 @@ public partial class IM800
 						return;
 					}
 
-					decodeResult.ResultObject.Destination.Displacement = (short)displacementResult.ResultObject!.Data;
+					decodeResult.ResultObject.Destination.Displacement = (short)displacementResult.ResultObject.Data;
 				}
 			}
 
@@ -273,7 +268,7 @@ public partial class IM800
 					return;
 				}
 
-				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject!.Data;
+				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject.Data;
 			}
 			else
 			{
@@ -298,7 +293,7 @@ public partial class IM800
 					return;
 				}
 
-				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject!.Data;
+				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject.Data;
 			}
 			else
 			{
@@ -322,7 +317,7 @@ public partial class IM800
 						return;
 					}
 
-					decodeResult.ResultObject.Source.Displacement = (short)displacementResult.ResultObject!.Data;
+					decodeResult.ResultObject.Source.Displacement = (short)displacementResult.ResultObject.Data;
 				}
 			}
 
@@ -340,7 +335,7 @@ public partial class IM800
 					return;
 				}
 
-				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject!.Data;
+				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
 			}
 			else
 			{
@@ -354,8 +349,6 @@ public partial class IM800
 
 	private void DecodeFormatUR(Result<DecodedOperation> decodeResult)
 	{
-		Debug.Assert(decodeResult.ResultObject is not null);
-
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
@@ -420,8 +413,6 @@ public partial class IM800
 
 	private void DecodeFormatUM(Result<DecodedOperation> decodeResult)
 	{
-		Debug.Assert(decodeResult.ResultObject is not null);
-
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
@@ -480,7 +471,7 @@ public partial class IM800
 				return;
 			}
 
-			decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject!.Data;
+			decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
 		}
 		else
 		{
@@ -504,15 +495,13 @@ public partial class IM800
 					return;
 				}
 
-				decodeResult.ResultObject.Destination.Displacement = (short)displacementResult.ResultObject!.Data;
+				decodeResult.ResultObject.Destination.Displacement = (short)displacementResult.ResultObject.Data;
 			}
 		}
 	}
 
 	private void DecodeFormatB(Result<DecodedOperation> decodeResult)
 	{
-		Debug.Assert(decodeResult.ResultObject is not null);
-
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 8:4 Opcode
@@ -581,7 +570,7 @@ public partial class IM800
 		}
 
 		int conditionSelector = (decodeResult.ResultObject.InstructionWord >> 9) & 0b1111;
-		Result<Constants.Condition> conditionResult = DecodeCondition(conditionSelector);
+		Result<Constants.Condition?> conditionResult = DecodeCondition(conditionSelector);
 
 		if (!conditionResult.IsSuccess)
 		{
@@ -589,7 +578,10 @@ public partial class IM800
 			return;
 		}
 
-		decodeResult.ResultObject.Condition = conditionResult.ResultObject;
+		if (conditionResult.ResultObject is not null)
+		{
+			decodeResult.ResultObject.Condition = conditionResult.ResultObject.Value;
+		}
 
 		int registerSelector = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
 
@@ -609,7 +601,7 @@ public partial class IM800
 				return;
 			}
 
-			decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject!.Data;
+			decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
 		}
 		else
 		{
@@ -622,8 +614,6 @@ public partial class IM800
 
 	private void DecodeFormatM(Result<DecodedOperation> decodeResult)
 	{
-		Debug.Assert(decodeResult.ResultObject is not null);
-
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
@@ -676,7 +666,7 @@ public partial class IM800
 			decodeResult.ResultObject.Destination = new()
 			{
 				DataSize = Constants.DataSize.Dword,
-				Data = immediateResult.ResultObject!.Data,
+				Data = immediateResult.ResultObject.Data,
 			};
 		}
 		else if (decodeResult.ResultObject.Operation == Constants.Operation.RST)
@@ -692,15 +682,13 @@ public partial class IM800
 			decodeResult.ResultObject.Destination = new()
 			{
 				DataSize = Constants.DataSize.Byte,
-				Data = immediateResult.ResultObject!.Data,
+				Data = immediateResult.ResultObject.Data,
 			};
 		}
 	}
 
 	private void DecodeFormatSB(Result<DecodedOperation> decodeResult)
 	{
-		Debug.Assert(decodeResult.ResultObject is not null);
-
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
@@ -740,8 +728,6 @@ public partial class IM800
 
 	private void DecodeFormatBLK(Result<DecodedOperation> decodeResult)
 	{
-		Debug.Assert(decodeResult.ResultObject is not null);
-
 		// 1:0 Group
 		// 3:2 Subgroup
 		// 7:4 Opcode
@@ -846,7 +832,7 @@ public partial class IM800
 		};
 	}
 
-	private static Result<Constants.Condition> DecodeCondition(int selector)
+	private static Result<Constants.Condition?> DecodeCondition(int selector)
 	{
 		// Fully out of range
 		if (selector is < 0 or > 0b1111)
@@ -854,7 +840,7 @@ public partial class IM800
 			throw new ArgumentException($"invalid condition selector {selector:X}", nameof(selector));
 		}
 
-		Result<Constants.Condition> result = new();
+		Result<Constants.Condition?> result = new(null);
 
 		switch (selector)
 		{
@@ -916,7 +902,7 @@ public partial class IM800
 
 	private Result<MemoryOperation> FetchImmediate(Result<DecodedOperation> decodeResult, Constants.DataSize size)
 	{
-		Debug.Assert(decodeResult.ResultObject is not null);
+
 
 		Result<MemoryOperation> readResult = _memoryBus.Read(decodeResult.ResultObject.BaseAddress, size);
 
