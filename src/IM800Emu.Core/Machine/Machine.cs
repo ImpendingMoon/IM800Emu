@@ -1,4 +1,5 @@
 using IM800Emu.Core.CPU;
+using IM800Emu.Core.Device;
 
 namespace IM800Emu.Core.Machine;
 
@@ -16,20 +17,31 @@ public class Machine
 	/// <param name="startupRom"></param>
 	public Machine(byte[] startupRom)
 	{
+		RAMDevice rom = new(startupRom, true);
+
 		_memoryBus = new Bus.MemoryBus();
+
+		_memoryBus.AddDevice(rom, 0x0000_0000, rom.Length);
+
 		_cpu = new CPU.IM800(_memoryBus);
 	}
 
 	/// <summary>
 	///
 	/// </summary>
-	public void StepFrame()
+	public Result StepFrame()
 	{
-		Result<DecodedOperation> operation = _cpu.Decode();
+		Result result = new();
 
-		if (operation.IsSuccess)
+		Result<DecodedOperation> decodeResult = _cpu.Decode();
+		result.Combine(decodeResult);
+
+		if (decodeResult.IsSuccess)
 		{
-			_ = _cpu.Execute(operation.ResultObject!);
+			Result<int> executeResult = _cpu.Execute(decodeResult.ResultObject);
+			result.Combine(executeResult);
 		}
+
+		return result;
 	}
 }

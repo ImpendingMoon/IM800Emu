@@ -47,7 +47,7 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodeResult.AddError($"invalid format R opcode 0x{opcode:X2}");
+			decodeResult.AddError(_decodeErrorName, $"invalid format R opcode 0x{opcode:X2}");
 			return;
 		}
 
@@ -58,7 +58,10 @@ public partial class IM800
 		// Only LEA can use a Qword operand size
 		if (size == Constants.DataSize.Qword && decodeResult.ResultObject.Operation != Constants.Operation.LEA)
 		{
-			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
 			return;
 		}
 
@@ -85,7 +88,7 @@ public partial class IM800
 
 		if (destinationSelector == (int)Constants.RegisterSelector.Immediate)
 		{
-			decodeResult.AddError($"destination register cannot be immediate");
+			decodeResult.AddError(_decodeErrorName, $"destination register cannot be immediate");
 			return;
 		}
 
@@ -163,7 +166,7 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodeResult.AddError($"invalid format RM opcode 0x{opcode:X2}");
+			decodeResult.AddError(_decodeErrorName, $"invalid format RM opcode 0x{opcode:X2}");
 			return;
 		}
 
@@ -176,7 +179,10 @@ public partial class IM800
 		// Only LEA can use a Qword operand size
 		if (size == Constants.DataSize.Qword && decodeResult.ResultObject.Operation != Constants.Operation.LEA)
 		{
-			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
 			return;
 		}
 
@@ -207,7 +213,10 @@ public partial class IM800
 			&& addressRegisterSelector == (int)Constants.RegisterSelector.Immediate
 		)
 		{
-			decodeResult.AddError($"cannot use an immediate value for both register and address register");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"cannot use an immediate value for both register and address register"
+			);
 			return;
 		}
 
@@ -382,7 +391,10 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodeResult.AddError($"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
 			return;
 		}
 
@@ -393,7 +405,10 @@ public partial class IM800
 
 		if (size == Constants.DataSize.Qword)
 		{
-			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
 			return;
 		}
 
@@ -401,7 +416,7 @@ public partial class IM800
 
 		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
 		{
-			decodeResult.AddError($"Format UR cannot use an immediate value");
+			decodeResult.AddError(_decodeErrorName, $"Format UR cannot use an immediate value");
 			return;
 		}
 
@@ -444,7 +459,10 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodeResult.AddError($"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
 			return;
 		}
 
@@ -455,7 +473,10 @@ public partial class IM800
 
 		if (size == Constants.DataSize.Qword)
 		{
-			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
 			return;
 		}
 
@@ -565,7 +586,7 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodeResult.AddError($"invalid format B opcode 0x{opcode:X2}");
+			decodeResult.AddError(_decodeErrorName, $"invalid format B opcode 0x{opcode:X2}");
 			return;
 		}
 
@@ -587,7 +608,7 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.RET && registerSelector != 0)
 		{
-			decodeResult.AddError($"RET must have a register selector of 0");
+			decodeResult.AddError(_decodeErrorName, $"RET must have a register selector of 0");
 			return;
 		}
 
@@ -648,7 +669,10 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodeResult.AddError($"invalid format M opcode and function 0x{opcode:X2}, 0x{function:X2}");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"invalid format M opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
 			return;
 		}
 
@@ -706,7 +730,7 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodeResult.AddError($"invalid format SB opcode 0x{opcode:X2}");
+			decodeResult.AddError(_decodeErrorName, $"invalid format SB opcode 0x{opcode:X2}");
 			return;
 		}
 
@@ -752,7 +776,10 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
-			decodeResult.AddError($"invalid format BLK opcode and function 0x{opcode:X2}, 0x{function:X2}");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"invalid format BLK opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
 			return;
 		}
 
@@ -761,7 +788,10 @@ public partial class IM800
 
 		if (size is Constants.DataSize.Dword or Constants.DataSize.Qword)
 		{
-			decodeResult.AddError($"invalid size {size} for operation {decodeResult.ResultObject.Operation}");
+			decodeResult.AddError(
+				_decodeErrorName,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
 			return;
 		}
 
@@ -892,7 +922,7 @@ public partial class IM800
 			default:
 			{
 				// Invalid but in range, possible in guest
-				result.AddError($"invalid condition selector {selector:X}");
+				result.AddError(_decodeErrorName, $"invalid condition selector {selector:X}");
 				break;
 			}
 		}

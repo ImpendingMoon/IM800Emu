@@ -5,17 +5,18 @@ namespace IM800Emu.Core;
 /// </summary>
 public class Result
 {
-	private readonly List<string> _errors = [];
+	private readonly List<Error> _errors = [];
 
 	public bool IsSuccess => Errors.Count == 0;
-	public IReadOnlyList<string> Errors => _errors;
+	public IReadOnlyList<Error> Errors => _errors;
 
 	/// <summary>
 	/// Adds an error string to this result
 	/// </summary>
-	/// <param name="error"></param>
-	public void AddError(string error)
+	/// <param name="message"></param>
+	public void AddError(string source, string message)
 	{
+		Error error = new(source, message);
 		_errors.Add(error);
 	}
 
@@ -26,6 +27,23 @@ public class Result
 	public void Combine(Result other)
 	{
 		_errors.AddRange(other._errors);
+	}
+
+	public class Error
+	{
+		public Error(string source, string message)
+		{
+			Source = source;
+			Message = message;
+		}
+
+		public string Source { get; set; }
+		public string Message { get; set; }
+
+		public override string ToString()
+		{
+			return $"{Source}: {Message}";
+		}
 	}
 }
 

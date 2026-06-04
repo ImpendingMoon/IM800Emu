@@ -10,6 +10,8 @@ public partial class IM800
 {
 	private readonly Registers _registers;
 	private readonly MemoryBus _memoryBus;
+	private static readonly string _decodeErrorName = "Decode";
+	private static readonly string _executeErrorName = "Execute";
 
 	public IM800(MemoryBus memoryBus)
 	{
@@ -113,7 +115,10 @@ public partial class IM800
 					}
 					default:
 					{
-						decodeResult.AddError($"invalid special subgroup selector 0x{subgroupSelector:X2}");
+						decodeResult.AddError(
+							_decodeErrorName,
+							$"invalid special subgroup selector 0x{subgroupSelector:X2}"
+						);
 						break;
 					}
 				}

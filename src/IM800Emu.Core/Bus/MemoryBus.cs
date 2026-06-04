@@ -155,7 +155,7 @@ public class MemoryBus
 
 		if (result.ResultObject is null)
 		{
-			result.AddError($"no device mapped at address {address}");
+			result.AddError(nameof(MemoryBus), $"no device mapped at address {address}");
 		}
 
 		return result;
