@@ -126,4 +126,17 @@ public static class Constants
 		Plus,
 		Minus,
 	}
+
+	public enum FlagMask : ushort
+	{
+		EnableInterrupts = 0b0000_0001_0000_0000,
+		Sign = 0b1000_0000,
+		Zero = 0b0100_0000,
+		Unused5 = 0b0010_0000,
+		HalfCarry = 0b0001_0000,
+		Unused3 = 0b0000_1000,
+		ParityOverflow = 0b0000_0100,
+		Subtract = 0b0000_0010,
+		Carry = 0b0000_0001,
+	}
 }

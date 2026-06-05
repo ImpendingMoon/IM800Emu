@@ -38,6 +38,28 @@ public class Registers
 		}
 	}
 
+	public bool GetFlag(Constants.FlagMask flag)
+	{
+		ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(0));
+		return (flags & (ushort)flag) != 0;
+	}
+
+	public void SetFlag(Constants.FlagMask flag, bool value)
+	{
+		ushort flags = BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(0));
+
+		if (value)
+		{
+			flags |= (ushort)flag;
+		}
+		else
+		{
+			flags &= (ushort)~flag;
+		}
+
+		BinaryPrimitives.WriteUInt16LittleEndian(_data.AsSpan(0), flags);
+	}
+
 	// Register file size:
 	// AF+BC+DE+HL+IX+IY+SP @ 4-bytes = 28 bytes
 	// + alts = 56 bytes
