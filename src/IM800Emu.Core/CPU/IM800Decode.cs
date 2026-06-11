@@ -374,7 +374,7 @@ public partial class IM800
 		int operationSelector = (opcode << 3) | function;
 		decodeResult.ResultObject.Operation = operationSelector switch
 		{
-			0b0000_000 => Constants.Operation.EX_Alt,
+			0b0000_000 => Constants.Operation.EXA,
 			0b0000_001 => Constants.Operation.PUSH,
 			0b0000_010 => Constants.Operation.POP,
 			0b0000_100 => Constants.Operation.EXH,

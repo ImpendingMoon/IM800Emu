@@ -32,7 +32,7 @@ public static class Constants
 		POP,
 		EXH,
 		LEA,
-		EX_Alt,
+		EXA,
 		EXX,
 		EXI,
 		IN_OUT,

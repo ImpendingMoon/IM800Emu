@@ -32,16 +32,6 @@ public class DecodedOperation
 		string destination = Destination?.ToString() ?? string.Empty;
 		string source = Source?.ToString() ?? string.Empty;
 
-		if (Operation == Constants.Operation.EX_Alt)
-		{
-			result.Append("EX ");
-			result.Append(destination);
-			result.Append(", ");
-			result.Append(destination);
-			result.Append('\'');
-			return result.ToString();
-		}
-
 		string mnemonic = Operation switch
 		{
 			Constants.Operation.LDI => "LD I,",

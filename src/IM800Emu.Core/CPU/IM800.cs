@@ -148,7 +148,7 @@ public partial class IM800
 			Constants.Operation.POP => ExecutePOP(operation),
 			Constants.Operation.EXH => ExecuteEXH(operation),
 			Constants.Operation.LEA => ExecuteLEA(operation),
-			Constants.Operation.EX_Alt => ExecuteEX_Alt(operation),
+			Constants.Operation.EXA => ExecuteEXA(operation),
 			Constants.Operation.EXX => ExecuteEXX(operation),
 			Constants.Operation.EXI => ExecuteEXI(operation),
 			Constants.Operation.IN_OUT => ExecuteIN_OUT(operation),

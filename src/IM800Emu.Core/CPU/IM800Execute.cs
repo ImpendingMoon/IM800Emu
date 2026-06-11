@@ -65,7 +65,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteEX_Alt(DecodedOperation operation)
+	public Result<int> ExecuteEXA(DecodedOperation operation)
 	{
 		Result<int> result = new(4);
 		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");

@@ -36,8 +36,8 @@ public class Operand
 
 		if (Indirect)
 		{
-			result.Insert(0, '(');
-			result.Append(')');
+			result.Insert(0, '[');
+			result.Append(']');
 		}
 
 		return result.ToString();
