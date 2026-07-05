@@ -1,6 +1,6 @@
-using IM800Emu.Core.Device;
 using System.Buffers.Binary;
 using System.Numerics;
+using IM800Emu.Core.Device;
 
 namespace IM800Emu.Core.Bus;
 
@@ -10,6 +10,7 @@ namespace IM800Emu.Core.Bus;
 public class MemoryBus
 {
 	private readonly List<DeviceMapping> _mappings = [];
+	private readonly int _baseMemoryCost = 3; // TODO: make this a config setting and/or figure out who owns this
 
 	public void AddDevice(IMemoryDevice device, uint baseAddress, uint addressSpaceLength)
 	{
@@ -52,7 +53,7 @@ public class MemoryBus
 			result.Combine(currentRead);
 
 			result.ResultObject.Cycles += currentRead.ResultObject.Cycles;
-			bytes[i] = (byte)result.ResultObject.Data;
+			bytes[i] = (byte)currentRead.ResultObject.Data;
 		}
 
 		result.ResultObject.Data = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
@@ -98,7 +99,7 @@ public class MemoryBus
 	{
 		MemoryOperation resultObject = new()
 		{
-			Cycles = 1, // This will support wait states at some point
+			Cycles = _baseMemoryCost,
 		};
 
 		Result<MemoryOperation> result = new(resultObject);
@@ -110,7 +111,8 @@ public class MemoryBus
 
 		if (findResult.ResultObject is not null)
 		{
-			readResult = findResult.ResultObject.Device.Read(address);
+			uint effectiveAddress = address - findResult.ResultObject.BaseAddress;
+			readResult = findResult.ResultObject.Device.Read(effectiveAddress);
 			result.Combine(readResult);
 		}
 
@@ -124,7 +126,7 @@ public class MemoryBus
 	{
 		MemoryOperation resultObject = new()
 		{
-			Cycles = 1, // This will support wait states at some point
+			Cycles = _baseMemoryCost,
 		};
 		Result<MemoryOperation> result = new(resultObject);
 

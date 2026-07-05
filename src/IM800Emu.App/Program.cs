@@ -19,7 +19,7 @@ internal class Program
 		if (startupRomPath.StartsWith('~'))
 		{
 			string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-			startupRomPath.Replace("~", userFolder);
+			startupRomPath = startupRomPath.Replace("~", userFolder);
 		}
 
 		if (!File.Exists(startupRomPath))

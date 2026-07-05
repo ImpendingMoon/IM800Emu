@@ -23,7 +23,7 @@ internal class RAMDevice : IMemoryDevice
 
 	public Result<byte?> Read(uint address)
 	{
-		Debug.Assert(address < _data.Length);
+		address %= (uint)_data.Length;
 
 		byte value = _data[address];
 		return new Result<byte?>(value);
@@ -31,7 +31,7 @@ internal class RAMDevice : IMemoryDevice
 
 	public Result Write(uint address, byte value)
 	{
-		Debug.Assert(address < _data.Length);
+		address %= (uint)_data.Length;
 
 		Result result = new();
 

@@ -1,5 +1,5 @@
-using IM800Emu.Core.Bus;
 using System.Diagnostics;
+using IM800Emu.Core.Bus;
 
 namespace IM800Emu.Core.CPU;
 
@@ -137,6 +137,10 @@ public partial class IM800
 	/// <returns>A result with the number of cycles taken to execute</returns>
 	public Result<int> Execute(DecodedOperation operation)
 	{
+		uint pc = _registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+		pc += operation.Length;
+		_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
+
 		Result<int> executeResult = operation.Operation switch
 		{
 			Constants.Operation.Invalid => ExecuteInvalid(operation),

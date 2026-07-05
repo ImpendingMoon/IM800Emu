@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace IM800Emu.Core.CPU;
 
 public partial class IM800
@@ -25,8 +27,21 @@ public partial class IM800
 
 	public Result<int> ExecuteLD(DecodedOperation operation)
 	{
-		Result<int> result = new(4);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+		Debug.Assert(operation.Destination is not null && operation.Source is not null);
+
+		Result<int> result = new(operation.FetchCycles + 1);
+
+		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		result.Combine(readSourceResult);
+		result.ResultObject += readSourceResult.ResultObject.Cycles;
+
+		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(
+			operation.Destination,
+			readSourceResult.ResultObject.Data
+		);
+		result.Combine(writeDestResult);
+		result.ResultObject += writeDestResult.ResultObject.Cycles;
+
 		return result;
 	}
 
@@ -490,5 +505,80 @@ public partial class IM800
 		Result<int> result = new(4);
 		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
 		return result;
+	}
+
+	public Result<Bus.MemoryOperation> ReadOperand(Operand operand)
+	{
+		Bus.MemoryOperation memoryOperation = new();
+		Result<Bus.MemoryOperation> result = new(memoryOperation);
+
+		if (operand.Indirect)
+		{
+			uint address = GetEffectiveAddress(operand);
+			result = _memoryBus.Read(address, operand.DataSize);
+		}
+		else
+		{
+			if (operand.Register != default)
+			{
+				memoryOperation.Data = _registers.Read(operand.Register, operand.DataSize);
+			}
+			else
+			{
+				memoryOperation.Data = operand.Data;
+			}
+		}
+
+		return result;
+	}
+
+	public Result<Bus.MemoryOperation> WriteOperand(Operand operand, uint data)
+	{
+		Bus.MemoryOperation memoryOperation = new();
+		Result<Bus.MemoryOperation> result = new(memoryOperation);
+
+		if (operand.Indirect)
+		{
+			uint address = GetEffectiveAddress(operand);
+			result = _memoryBus.Write(address, operand.DataSize, data);
+		}
+		else
+		{
+			if (operand.Register == default)
+			{
+				result.AddError("WriteOperand", "tried to write back to an immediate operand");
+			}
+			else
+			{
+				_registers.Write(operand.Register, operand.DataSize, data);
+			}
+		}
+
+		return result;
+	}
+
+	private uint GetEffectiveAddress(Operand operand)
+	{
+		uint address;
+
+		if (operand.Register != default)
+		{
+			address = _registers.Read(operand.Register, Constants.DataSize.Dword);
+		}
+		else
+		{
+			address = operand.Data;
+		}
+
+		if (operand.Register
+			is Constants.RegisterTarget.IX
+			or Constants.RegisterTarget.IY
+			or Constants.RegisterTarget.SP
+		)
+		{
+			address = (uint)((int)address + operand.Displacement);
+		}
+
+		return address;
 	}
 }

@@ -97,6 +97,7 @@ public class DecodedOperation
 			or Constants.Operation.BOUT
 		)
 		{
+			result.Append(' ');
 			if (Increment)
 			{
 				result.Append("I, ");
