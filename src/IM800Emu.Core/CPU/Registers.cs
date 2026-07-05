@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 
 namespace IM800Emu.Core.CPU;
 
@@ -9,7 +10,7 @@ public class Registers
 {
 	public uint Read(Constants.RegisterTarget register, Constants.DataSize size)
 	{
-		int index = GetRegisterIndex(register);
+		int index = ReadIndex(register);
 		return size switch
 		{
 			Constants.DataSize.Byte => _data[index],
@@ -21,7 +22,7 @@ public class Registers
 
 	public void Write(Constants.RegisterTarget register, Constants.DataSize size, uint value)
 	{
-		int index = GetRegisterIndex(register);
+		int index = ReadIndex(register);
 		switch (size)
 		{
 			case Constants.DataSize.Byte:
@@ -35,6 +36,14 @@ public class Registers
 				break;
 			default:
 				throw new ArgumentException($"invalid register size {size}", nameof(size));
+		}
+
+		// Update IFF1/2 immediately
+		if (register == Constants.RegisterTarget.F)
+		{
+			int iffValue = (value & (uint)Constants.FlagMask.EnableInterrupts) != 0 ? 1 : 0;
+			Write(Constants.RegisterTarget.IFF1, Constants.DataSize.Byte, (uint)iffValue);
+			Write(Constants.RegisterTarget.IFF2, Constants.DataSize.Byte, (uint)iffValue);
 		}
 	}
 
@@ -60,6 +69,84 @@ public class Registers
 		BinaryPrimitives.WriteUInt16LittleEndian(_data.AsSpan(0), flags);
 	}
 
+	public string GetStandardDisplayString()
+	{
+		StringBuilder sb = new();
+
+		sb.Append($"AF: {Read(Constants.RegisterTarget.AF, Constants.DataSize.Dword):X8} ");
+		sb.Append($"BC: {Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword):X8} ");
+		sb.Append($"DE: {Read(Constants.RegisterTarget.DE, Constants.DataSize.Dword):X8} ");
+		sb.Append($"HL: {Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword):X8} ");
+		sb.Append($"IX: {Read(Constants.RegisterTarget.IX, Constants.DataSize.Dword):X8} ");
+		sb.Append($"IY: {Read(Constants.RegisterTarget.IY, Constants.DataSize.Dword):X8} ");
+		sb.Append($"SP: {Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword):X8} ");
+		sb.Append($"PC: {Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword):X8} ");
+
+		return sb.ToString();
+	}
+
+	public string GetAlternateDisplayString()
+	{
+		var sb = new StringBuilder();
+
+		sb.Append($"AF': {Read(Constants.RegisterTarget.AF_, Constants.DataSize.Dword):X8} ");
+		sb.Append($"BC': {Read(Constants.RegisterTarget.BC_, Constants.DataSize.Dword):X8} ");
+		sb.Append($"DE': {Read(Constants.RegisterTarget.DE_, Constants.DataSize.Dword):X8} ");
+		sb.Append($"HL': {Read(Constants.RegisterTarget.HL_, Constants.DataSize.Dword):X8} ");
+		sb.Append($"IX': {Read(Constants.RegisterTarget.IX_, Constants.DataSize.Dword):X8} ");
+		sb.Append($"IY': {Read(Constants.RegisterTarget.IY_, Constants.DataSize.Dword):X8} ");
+		sb.Append($"SP': {Read(Constants.RegisterTarget.SP_, Constants.DataSize.Dword):X8} ");
+
+		return sb.ToString();
+	}
+
+	public string GetSystemDisplayString()
+	{
+		var sb = new StringBuilder();
+
+		sb.Append($"I: {Read(Constants.RegisterTarget.I, Constants.DataSize.Dword):X8} ");
+		sb.Append($"R: {Read(Constants.RegisterTarget.R, Constants.DataSize.Word):X4} ");
+
+		return sb.ToString();
+	}
+
+	public string GetFlagsDisplayString()
+	{
+		var sb = new StringBuilder();
+
+		sb.Append($"C: {GetFlag(Constants.FlagMask.Carry)} ");
+		sb.Append($"N: {GetFlag(Constants.FlagMask.Subtract)} ");
+		sb.Append($"PV: {GetFlag(Constants.FlagMask.ParityOverflow)} ");
+		sb.Append($"H: {GetFlag(Constants.FlagMask.HalfCarry)} ");
+		sb.Append($"Z: {GetFlag(Constants.FlagMask.Zero)} ");
+		sb.Append($"S: {GetFlag(Constants.FlagMask.Sign)} ");
+		sb.Append($"IE: {GetFlag(Constants.FlagMask.EnableInterrupts)} ");
+		sb.Append($"IFF2: {Read(Constants.RegisterTarget.IFF2, Constants.DataSize.Byte) != 0}");
+
+		return sb.ToString();
+	}
+
+	public string GetFullDisplayString()
+	{
+		var sb = new StringBuilder();
+
+		sb.AppendLine("Registers:");
+		sb.AppendLine(GetStandardDisplayString());
+		sb.AppendLine("Alternate Registers:");
+		sb.AppendLine(GetAlternateDisplayString());
+		sb.AppendLine("System Registers:");
+		sb.AppendLine(GetSystemDisplayString());
+		sb.AppendLine("Flags:");
+		sb.AppendLine(GetFlagsDisplayString());
+
+		return sb.ToString();
+	}
+
+	public override string ToString()
+	{
+		return GetStandardDisplayString();
+	}
+
 	// Register file size:
 	// AF+BC+DE+HL+IX+IY+SP @ 4-bytes = 28 bytes
 	// + alts = 56 bytes
@@ -69,7 +156,7 @@ public class Registers
 	// + IFF1 + IFF2 = 68 bytes
 	private readonly byte[] _data = new byte[68];
 
-	private static int GetRegisterIndex(Constants.RegisterTarget register)
+	private static int ReadIndex(Constants.RegisterTarget register)
 	{
 		return register switch
 		{

@@ -13,6 +13,8 @@ public partial class IM800
 	private static readonly string _decodeErrorName = "Decode";
 	private static readonly string _executeErrorName = "Execute";
 
+	public Registers Registers => _registers;
+
 	public IM800(MemoryBus memoryBus)
 	{
 		_registers = new();

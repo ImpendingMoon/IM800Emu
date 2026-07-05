@@ -39,6 +39,7 @@ public class Machine
 		if (decodeResult.IsSuccess)
 		{
 			Console.WriteLine(decodeResult.ResultObject);
+			Console.WriteLine(_cpu.Registers.GetFullDisplayString());
 			Result<int> executeResult = _cpu.Execute(decodeResult.ResultObject);
 			result.Combine(executeResult);
 		}
