@@ -15,7 +15,6 @@ public class DecodedOperation
 	public uint Length { get; set; }
 	public ushort InstructionWord { get; set; }
 
-	// This is only meaningful for LEA and the disassembler
 	public Constants.DataSize DataSize { get; set; }
 	// This is only meaningful for branch instructions
 	public Constants.Condition Condition { get; set; }

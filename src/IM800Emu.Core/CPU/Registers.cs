@@ -45,6 +45,24 @@ public class Registers
 			Write(Constants.RegisterTarget.IFF1, Constants.DataSize.Byte, (uint)iffValue);
 			Write(Constants.RegisterTarget.IFF2, Constants.DataSize.Byte, (uint)iffValue);
 		}
+
+		// Update IE
+		if (register == Constants.RegisterTarget.IFF1)
+		{
+			bool enabled = value != 0;
+			SetFlag(Constants.FlagMask.EnableInterrupts, enabled);
+		}
+	}
+
+	public void ExchangeWithAlternate(Constants.RegisterTarget register, Constants.DataSize size)
+	{
+		Constants.RegisterTarget alt = GetAlternateTarget(register);
+
+		uint oldPrimary = Read(register, size);
+		uint oldAlternate = Read(alt, size);
+
+		Write(register, size, oldAlternate);
+		Write(alt, size, oldPrimary);
 	}
 
 	public bool GetFlag(Constants.FlagMask flag)

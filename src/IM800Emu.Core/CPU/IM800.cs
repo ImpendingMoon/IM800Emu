@@ -143,6 +143,10 @@ public partial class IM800
 		pc += operation.Length;
 		_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
 
+		uint r = _registers.Read(Constants.RegisterTarget.R, Constants.DataSize.Word);
+		r++;
+		_registers.Write(Constants.RegisterTarget.R, Constants.DataSize.Word, r);
+
 		Result<int> executeResult = operation.Operation switch
 		{
 			Constants.Operation.Invalid => ExecuteInvalid(operation),
@@ -153,7 +157,7 @@ public partial class IM800
 			Constants.Operation.PUSH => ExecutePUSH(operation),
 			Constants.Operation.POP => ExecutePOP(operation),
 			Constants.Operation.EXH => ExecuteEXH(operation),
-			Constants.Operation.LEA => ExecuteLEA(operation),
+			Constants.Operation.LEA => ExecuteESA(operation),
 			Constants.Operation.EXA => ExecuteEXA(operation),
 			Constants.Operation.EXX => ExecuteEXX(operation),
 			Constants.Operation.EXI => ExecuteEXI(operation),

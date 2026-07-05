@@ -2,6 +2,8 @@ namespace IM800Emu.Core;
 
 public static class Constants
 {
+	public static readonly int DwordALUCost = 1;
+
 	public enum RegisterSelector
 	{
 		A = 0b000,
