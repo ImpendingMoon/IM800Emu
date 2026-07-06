@@ -135,7 +135,8 @@ public class MemoryBus
 
 		if (findResult.ResultObject is not null)
 		{
-			Result writeResult = findResult.ResultObject.Device.Write(address, value);
+			uint effectiveAddress = address - findResult.ResultObject.BaseAddress;
+			Result writeResult = findResult.ResultObject.Device.Write(effectiveAddress, value);
 			result.Combine(writeResult);
 		}
 
@@ -157,7 +158,7 @@ public class MemoryBus
 
 		if (result.ResultObject is null)
 		{
-			result.AddError(nameof(MemoryBus), $"no device mapped at address {address}");
+			result.AddError(nameof(MemoryBus), $"no device mapped at address 0x{address:X}");
 		}
 
 		return result;

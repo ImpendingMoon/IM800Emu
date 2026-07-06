@@ -28,6 +28,7 @@ public static class Constants
 		Invalid = 0,
 		Halted,
 		Interrupted,
+		NonMaskableInterrupt,
 		LD,
 		EX,
 		PUSH,
@@ -113,7 +114,7 @@ public static class Constants
 		AF, BC, DE, HL, IX, IY, SP,
 		A_, F_, B_, C_, D_, E_, H_, L_,
 		AF_, BC_, DE_, HL_, IX_, IY_, SP_,
-		PC, I, R, IFF1, IFF2,
+		PC, I, R,
 	}
 
 	public enum Condition
@@ -131,6 +132,9 @@ public static class Constants
 
 	public enum FlagMask : ushort
 	{
+		// Use flag bits exclusively since it's a pain to maintain separate flags and IFF1/2 in software.
+		// Technically EI should be a view of IFF1, and bit 9 is reserved and must be maintained by software. 
+		EnableInterruptsSave = 0b0000_0010_0000_0000,
 		EnableInterrupts = 0b0000_0001_0000_0000,
 		Sign = 0b1000_0000,
 		Zero = 0b0100_0000,

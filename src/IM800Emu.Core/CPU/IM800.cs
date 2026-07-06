@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using IM800Emu.Core.Bus;
+using Microsoft.VisualBasic;
 
 namespace IM800Emu.Core.CPU;
 
@@ -10,15 +11,41 @@ public partial class IM800
 {
 	private readonly Registers _registers;
 	private readonly MemoryBus _memoryBus;
+	private readonly MemoryBus _ioBus;
+	private readonly InterruptBus _interruptBus;
 	private static readonly string _decodeErrorName = "Decode";
 	private static readonly string _executeErrorName = "Execute";
+	private bool _pendingEnableInterrupts = false;
+	private bool _enableInterrupts = false;
+	private bool _halted = false;
+	private int _interruptMode = 1;
+
+	/// <summary>
+	/// The currently-executing block operation. If this is not null, this operation will be re-sent by Decode()
+	/// </summary>
+	private DecodedOperation? _currentBlockOperation = null;
 
 	public Registers Registers => _registers;
 
-	public IM800(MemoryBus memoryBus)
+	public IM800(MemoryBus memoryBus, MemoryBus ioBus, InterruptBus interruptBus)
 	{
 		_registers = new();
 		_memoryBus = memoryBus;
+		_ioBus = ioBus;
+		_interruptBus = interruptBus;
+	}
+
+	public Result Reset()
+	{
+		Result result = new();
+
+		_registers.ClearRegisters();
+		// Read reset vector
+		Result<MemoryOperation> resetVectorResult = _memoryBus.Read(0x00000000, Constants.DataSize.Dword);
+		result.Combine(resetVectorResult);
+		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, resetVectorResult.ResultObject.Data);
+
+		return result;
 	}
 
 	/// <summary>
@@ -27,6 +54,38 @@ public partial class IM800
 	/// <returns></returns>
 	public Result<DecodedOperation> Decode()
 	{
+		if (_interruptBus.IsNonMaskableInterruptPending())
+		{
+			DecodedOperation operation = new()
+			{
+				Operation = Constants.Operation.NonMaskableInterrupt,
+			};
+			return new(operation);
+		}
+
+		if (_interruptBus.IsInterruptPending() && Registers.GetFlag(Constants.FlagMask.EnableInterrupts))
+		{
+			DecodedOperation operation = new()
+			{
+				Operation = Constants.Operation.Interrupted,
+			};
+			return new(operation);
+		}
+
+		if (_currentBlockOperation is not null)
+		{
+			return new(_currentBlockOperation);
+		}
+
+		if (_halted)
+		{
+			DecodedOperation operation = new()
+			{
+				Operation = Constants.Operation.Halted,
+			};
+			return new(operation);
+		}
+
 		uint pc = _registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 		return DecodeAt(pc);
 	}
@@ -147,11 +206,17 @@ public partial class IM800
 		r++;
 		_registers.Write(Constants.RegisterTarget.R, Constants.DataSize.Word, r);
 
+		if (_pendingEnableInterrupts)
+		{
+			_enableInterrupts = true;
+		}
+
 		Result<int> executeResult = operation.Operation switch
 		{
 			Constants.Operation.Invalid => ExecuteInvalid(operation),
 			Constants.Operation.Halted => ExecuteHalted(operation),
 			Constants.Operation.Interrupted => ExecuteInterrupted(operation),
+			Constants.Operation.NonMaskableInterrupt => ExecuteNonMaskableInterrupt(operation),
 			Constants.Operation.LD => ExecuteLD(operation),
 			Constants.Operation.EX => ExecuteEX(operation),
 			Constants.Operation.PUSH => ExecutePUSH(operation),
@@ -221,6 +286,12 @@ public partial class IM800
 			Constants.Operation.BOUT => ExecuteBOUT(operation),
 			_ => throw new NotImplementedException($"Execute{operation.Operation} does not exist"),
 		};
+
+		if (_enableInterrupts)
+		{
+			_enableInterrupts = false;
+			_registers.SetFlag(Constants.FlagMask.EnableInterrupts, true);
+		}
 
 		return executeResult;
 	}

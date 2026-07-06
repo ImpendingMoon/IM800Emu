@@ -37,21 +37,6 @@ public class Registers
 			default:
 				throw new ArgumentException($"invalid register size {size}", nameof(size));
 		}
-
-		// Update IFF1/2 immediately
-		if (register == Constants.RegisterTarget.F)
-		{
-			int iffValue = (value & (uint)Constants.FlagMask.EnableInterrupts) != 0 ? 1 : 0;
-			Write(Constants.RegisterTarget.IFF1, Constants.DataSize.Byte, (uint)iffValue);
-			Write(Constants.RegisterTarget.IFF2, Constants.DataSize.Byte, (uint)iffValue);
-		}
-
-		// Update IE
-		if (register == Constants.RegisterTarget.IFF1)
-		{
-			bool enabled = value != 0;
-			SetFlag(Constants.FlagMask.EnableInterrupts, enabled);
-		}
 	}
 
 	public void ExchangeWithAlternate(Constants.RegisterTarget register, Constants.DataSize size)
@@ -85,6 +70,11 @@ public class Registers
 		}
 
 		BinaryPrimitives.WriteUInt16LittleEndian(_data.AsSpan(0), flags);
+	}
+
+	public void ClearRegisters()
+	{
+		Array.Clear(_data);
 	}
 
 	public string GetStandardDisplayString()
@@ -139,7 +129,7 @@ public class Registers
 		sb.Append($"Z: {GetFlag(Constants.FlagMask.Zero)} ");
 		sb.Append($"S: {GetFlag(Constants.FlagMask.Sign)} ");
 		sb.Append($"IE: {GetFlag(Constants.FlagMask.EnableInterrupts)} ");
-		sb.Append($"IFF2: {Read(Constants.RegisterTarget.IFF2, Constants.DataSize.Byte) != 0}");
+		sb.Append($"IFF2: {GetFlag(Constants.FlagMask.EnableInterruptsSave)}");
 
 		return sb.ToString();
 	}
@@ -171,8 +161,7 @@ public class Registers
 	// + PC = 60 bytes
 	// + I = 64 bytes
 	// + R = 66 bytes
-	// + IFF1 + IFF2 = 68 bytes
-	private readonly byte[] _data = new byte[68];
+	private readonly byte[] _data = new byte[66];
 
 	private static int ReadIndex(Constants.RegisterTarget register)
 	{
@@ -211,8 +200,6 @@ public class Registers
 			Constants.RegisterTarget.PC => 56,
 			Constants.RegisterTarget.I => 60,
 			Constants.RegisterTarget.R => 64,
-			Constants.RegisterTarget.IFF1 => 66,
-			Constants.RegisterTarget.IFF2 => 67,
 			_ => throw new ArgumentException($"unknown register {register}", nameof(register))
 		};
 	}

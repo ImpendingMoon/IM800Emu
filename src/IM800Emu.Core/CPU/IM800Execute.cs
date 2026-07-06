@@ -1,33 +1,50 @@
-using System.Buffers;
 using System.Diagnostics;
-using System.Linq.Expressions;
+using IM800Emu.Core.Bus;
 
 namespace IM800Emu.Core.CPU;
 
 public partial class IM800
 {
-	public Result<int> ExecuteInvalid(DecodedOperation operation)
+	private Result<int> ExecuteInvalid(DecodedOperation operation)
 	{
 		Result<int> result = new(operation.FetchCycles + 1);
 		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
 		return result;
 	}
 
-	public Result<int> ExecuteHalted(DecodedOperation operation)
+	private Result<int> ExecuteHalted(DecodedOperation operation)
 	{
-		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+		Result<int> result = new(4);
 		return result;
 	}
 
-	public Result<int> ExecuteInterrupted(DecodedOperation operation)
+	private Result<int> ExecuteInterrupted(DecodedOperation operation)
 	{
-		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
-		return result;
+		Registers.SetFlag(Constants.FlagMask.EnableInterrupts, false);
+		Registers.SetFlag(Constants.FlagMask.EnableInterruptsSave, false);
+
+		byte interruptNumber = _interruptBus.AcknowledgeInterrupt();
+
+		if (_interruptMode == 1)
+		{
+			interruptNumber = 1;
+		}
+
+		return InternalServiceInterrupt(interruptNumber);
 	}
 
-	public Result<int> ExecuteLD(DecodedOperation operation)
+	private Result<int> ExecuteNonMaskableInterrupt(DecodedOperation operation)
+	{
+		_interruptBus.AcknowledgeNonMaskableInterrupt();
+
+		bool enableInterrupts = Registers.GetFlag(Constants.FlagMask.EnableInterrupts);
+		Registers.SetFlag(Constants.FlagMask.EnableInterruptsSave, enableInterrupts);
+		Registers.SetFlag(Constants.FlagMask.EnableInterrupts, false);
+
+		return InternalServiceInterrupt(2);
+	}
+
+	private Result<int> ExecuteLD(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
@@ -35,11 +52,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(
+		Result<MemoryOperation> writeDestResult = WriteOperand(
 			operation.Destination,
 			readSourceResult.ResultObject.Data
 		);
@@ -49,7 +66,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteEX(DecodedOperation operation)
+	private Result<int> ExecuteEX(DecodedOperation operation)
 	{
 		// Dest <-> Source
 
@@ -57,22 +74,22 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> writeSourceResult = WriteOperand(
+		Result<MemoryOperation> writeSourceResult = WriteOperand(
 			operation.Source,
 			readDestResult.ResultObject.Data
 		);
 		result.Combine(writeSourceResult);
 		result.ResultObject += writeSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(
+		Result<MemoryOperation> writeDestResult = WriteOperand(
 			operation.Destination,
 			readSourceResult.ResultObject.Data
 		);
@@ -82,7 +99,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecutePUSH(DecodedOperation operation)
+	private Result<int> ExecutePUSH(DecodedOperation operation)
 	{
 		// [sp] <- dest
 		// sp <- sp - 4
@@ -91,18 +108,18 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Destination);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> pushResult = InternalPush(readSourceResult.ResultObject.Data);
+		Result<MemoryOperation> pushResult = InternalPush(readSourceResult.ResultObject.Data);
 		result.Combine(pushResult);
 		result.ResultObject += pushResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecutePOP(DecodedOperation operation)
+	private Result<int> ExecutePOP(DecodedOperation operation)
 	{
 		// sp <- sp + 4
 		// dest <- [sp]
@@ -111,11 +128,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> popResult = InternalPop();
+		Result<MemoryOperation> popResult = InternalPop();
 		result.Combine(popResult);
 		result.ResultObject += popResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> writeDestinationResult = WriteOperand(
+		Result<MemoryOperation> writeDestinationResult = WriteOperand(
 			operation.Destination,
 			popResult.ResultObject.Data
 		);
@@ -125,7 +142,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteEXH(DecodedOperation operation)
+	private Result<int> ExecuteEXH(DecodedOperation operation)
 	{
 		// swap high and low halves of the operand
 
@@ -133,7 +150,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readDestinationResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestinationResult = ReadOperand(operation.Destination);
 		result.Combine(readDestinationResult);
 		result.ResultObject += readDestinationResult.ResultObject.Cycles;
 
@@ -166,14 +183,14 @@ public partial class IM800
 			}
 		}
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteESA(DecodedOperation operation)
+	private Result<int> ExecuteESA(DecodedOperation operation)
 	{
 		// extend, shift, add
 		// dest <- dest + extend(source << scale)
@@ -182,11 +199,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -205,14 +222,14 @@ public partial class IM800
 
 		uint data = readDestResult.ResultObject.Data + source;
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteEXA(DecodedOperation operation)
+	private Result<int> ExecuteEXA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -230,7 +247,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteEXX(DecodedOperation operation)
+	private Result<int> ExecuteEXX(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
@@ -243,7 +260,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteEXI(DecodedOperation operation)
+	private Result<int> ExecuteEXI(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
@@ -256,14 +273,49 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteIN_OUT(DecodedOperation operation)
+	private Result<int> ExecuteIN_OUT(DecodedOperation operation)
 	{
+		Debug.Assert(operation.Destination is not null && operation.Source is not null);
+		Debug.Assert(operation.Destination.Indirect ^ operation.Source.Indirect);
+
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+
+		// OUT
+		if (operation.Destination.Indirect)
+		{
+			Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+			result.Combine(readSourceResult);
+			result.ResultObject += readSourceResult.ResultObject.Cycles;
+
+			uint port = GetEffectiveAddress(operation.Destination);
+			Result<MemoryOperation> writePortResult = _ioBus.Write(
+				port,
+				operation.DataSize,
+				readSourceResult.ResultObject.Data
+			);
+			result.Combine(writePortResult);
+			result.ResultObject += writePortResult.ResultObject.Cycles;
+		}
+		// IN
+		else
+		{
+			uint port = GetEffectiveAddress(operation.Destination);
+			Result<MemoryOperation> readPortResult = _ioBus.Read(port, operation.DataSize);
+			result.Combine(readPortResult);
+			result.ResultObject += readPortResult.ResultObject.Cycles;
+
+			Result<MemoryOperation> writeDestResult = WriteOperand(
+				operation.Destination,
+				readPortResult.ResultObject.Data
+			);
+			result.Combine(writeDestResult);
+			result.ResultObject += writeDestResult.ResultObject.Cycles;
+		}
+
 		return result;
 	}
 
-	public Result<int> ExecuteADD(DecodedOperation operation)
+	private Result<int> ExecuteADD(DecodedOperation operation)
 	{
 		// Dest <- Dest + Source
 
@@ -271,11 +323,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -339,14 +391,14 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteADC(DecodedOperation operation)
+	private Result<int> ExecuteADC(DecodedOperation operation)
 	{
 		// Dest <- Dest + Source + Carry
 
@@ -354,11 +406,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -434,13 +486,13 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 		return result;
 	}
 
-	public Result<int> ExecuteSUB(DecodedOperation operation)
+	private Result<int> ExecuteSUB(DecodedOperation operation)
 	{
 		// Dest <- Dest - Source
 
@@ -448,11 +500,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -516,13 +568,13 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 		return result;
 	}
 
-	public Result<int> ExecuteSBC(DecodedOperation operation)
+	private Result<int> ExecuteSBC(DecodedOperation operation)
 	{
 		// Dest <- Dest - Source
 
@@ -530,11 +582,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -610,13 +662,13 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 		return result;
 	}
 
-	public Result<int> ExecuteCP(DecodedOperation operation)
+	private Result<int> ExecuteCP(DecodedOperation operation)
 	{
 		// Dest - Source
 
@@ -624,11 +676,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -695,7 +747,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteINC(DecodedOperation operation)
+	private Result<int> ExecuteINC(DecodedOperation operation)
 	{
 		// Dest <- Dest + 1
 
@@ -703,7 +755,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -764,14 +816,14 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteDEC(DecodedOperation operation)
+	private Result<int> ExecuteDEC(DecodedOperation operation)
 	{
 		// Dest <- Dest - 1
 
@@ -779,7 +831,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -840,13 +892,13 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 		return result;
 	}
 
-	public Result<int> ExecuteNEG(DecodedOperation operation)
+	private Result<int> ExecuteNEG(DecodedOperation operation)
 	{
 		// Dest <- 0 - Dest
 
@@ -854,7 +906,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -918,13 +970,13 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 		return result;
 	}
 
-	public Result<int> ExecuteEXT(DecodedOperation operation)
+	private Result<int> ExecuteEXT(DecodedOperation operation)
 	{
 		// Dest <- SignExtend(Dest, width / 2)
 
@@ -932,7 +984,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -964,13 +1016,13 @@ public partial class IM800
 			}
 		}
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 		return result;
 	}
 
-	public Result<int> ExecuteMLT(DecodedOperation operation)
+	private Result<int> ExecuteMLT(DecodedOperation operation)
 	{
 		// Dest <- Dest.Hi * Dest.Lo
 
@@ -978,7 +1030,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1028,13 +1080,13 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 		return result;
 	}
 
-	public Result<int> ExecuteDIV(DecodedOperation operation)
+	private Result<int> ExecuteDIV(DecodedOperation operation)
 	{
 		// Quotient = Dest.Hi / Dest.Lo
 		// Remainder = Dest.Hi % Dest.Lo
@@ -1045,7 +1097,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1111,13 +1163,13 @@ public partial class IM800
 
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 		return result;
 	}
 
-	public Result<int> ExecuteSDIV(DecodedOperation operation)
+	private Result<int> ExecuteSDIV(DecodedOperation operation)
 	{
 		// Quotient = Dest.Hi / Dest.Lo
 		// Remainder = Dest.Hi % Dest.Lo
@@ -1128,7 +1180,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1194,14 +1246,14 @@ public partial class IM800
 
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 		return result;
 	}
 
 	// Implementation taken from "The Undocumented Z80 Documented" by Sean Young
-	public Result<int> ExecuteDAA(DecodedOperation operation)
+	private Result<int> ExecuteDAA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
@@ -1269,7 +1321,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteAND(DecodedOperation operation)
+	private Result<int> ExecuteAND(DecodedOperation operation)
 	{
 		// Dest <- Dest & Source
 
@@ -1277,11 +1329,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1342,14 +1394,14 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteOR(DecodedOperation operation)
+	private Result<int> ExecuteOR(DecodedOperation operation)
 	{
 		// Dest <- Dest | Source
 
@@ -1357,11 +1409,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1422,14 +1474,14 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteXOR(DecodedOperation operation)
+	private Result<int> ExecuteXOR(DecodedOperation operation)
 	{
 		// Dest <- Dest ^ Source
 
@@ -1437,11 +1489,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1502,14 +1554,14 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteTST(DecodedOperation operation)
+	private Result<int> ExecuteTST(DecodedOperation operation)
 	{
 		// Dest & Source
 
@@ -1517,11 +1569,11 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1537,9 +1589,6 @@ public partial class IM800
 
 				data = (byte)(a & b);
 
-				flagState.Carry = BitHelper.WillAdditionWrap(a, b);
-				flagState.ParityOverflow = BitHelper.WillAdditionOverflow(a, b);
-				flagState.HalfCarry = BitHelper.WillAdditionHalfCarry(a, b);
 				flagState.Sign = (data & 0x80) != 0;
 
 				break;
@@ -1585,7 +1634,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteCPL(DecodedOperation operation)
+	private Result<int> ExecuteCPL(DecodedOperation operation)
 	{
 		// Dest <- Dest ^ -1
 
@@ -1593,7 +1642,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1654,24 +1703,24 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteBIT(DecodedOperation operation)
+	private Result<int> ExecuteBIT(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1710,17 +1759,17 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteSET(DecodedOperation operation)
+	private Result<int> ExecuteSET(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1753,24 +1802,24 @@ public partial class IM800
 
 		data |= (uint)(1 << bit);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteRES(DecodedOperation operation)
+	private Result<int> ExecuteRES(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1803,24 +1852,24 @@ public partial class IM800
 
 		data &= ~(uint)(1 << bit);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteRLC(DecodedOperation operation)
+	private Result<int> ExecuteRLC(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1896,24 +1945,24 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteRRC(DecodedOperation operation)
+	private Result<int> ExecuteRRC(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -1990,24 +2039,24 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteRL(DecodedOperation operation)
+	private Result<int> ExecuteRL(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -2087,24 +2136,24 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteRR(DecodedOperation operation)
+	private Result<int> ExecuteRR(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -2181,24 +2230,24 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteSLA(DecodedOperation operation)
+	private Result<int> ExecuteSLA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -2275,24 +2324,24 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteSRA(DecodedOperation operation)
+	private Result<int> ExecuteSRA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -2369,24 +2418,24 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteSRL(DecodedOperation operation)
+	private Result<int> ExecuteSRL(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		Result<Bus.MemoryOperation> readSourceResult = ReadOperand(operation.Source);
+		Result<MemoryOperation> readSourceResult = ReadOperand(operation.Source);
 		result.Combine(readSourceResult);
 		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-		Result<Bus.MemoryOperation> readDestResult = ReadOperand(operation.Destination);
+		Result<MemoryOperation> readDestResult = ReadOperand(operation.Destination);
 		result.Combine(readDestResult);
 		result.ResultObject += readDestResult.ResultObject.Cycles;
 
@@ -2463,21 +2512,21 @@ public partial class IM800
 		flagState.Zero = data == 0;
 		UpdateALUFlags(flagState);
 
-		Result<Bus.MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
+		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
 		result.Combine(writeDestResult);
 		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
 		return result;
 	}
 
-	public Result<int> ExecuteRLD(DecodedOperation operation)
+	private Result<int> ExecuteRLD(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
 		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
-		Result<Bus.MemoryOperation> readHLResult = _memoryBus.Read(hl, Constants.DataSize.Byte);
+		Result<MemoryOperation> readHLResult = _memoryBus.Read(hl, Constants.DataSize.Byte);
 		result.Combine(readHLResult);
 		result.ResultObject += readHLResult.ResultObject.Cycles;
 
@@ -2491,7 +2540,7 @@ public partial class IM800
 		byte newA = (byte)((a & 0xF0) | memHigh);
 		byte newMem = (byte)((memLow << 4) | aLow);
 
-		Result<Bus.MemoryOperation> writeHLResult = _memoryBus.Write(hl, Constants.DataSize.Byte, newMem);
+		Result<MemoryOperation> writeHLResult = _memoryBus.Write(hl, Constants.DataSize.Byte, newMem);
 		result.ResultObject += writeHLResult.ResultObject.Cycles;
 
 		ALUFlagState flagState = GetALUFlags();
@@ -2508,14 +2557,14 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteRRD(DecodedOperation operation)
+	private Result<int> ExecuteRRD(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
 		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
-		Result<Bus.MemoryOperation> readHLResult = _memoryBus.Read(hl, Constants.DataSize.Byte);
+		Result<MemoryOperation> readHLResult = _memoryBus.Read(hl, Constants.DataSize.Byte);
 		result.Combine(readHLResult);
 		result.ResultObject += readHLResult.ResultObject.Cycles;
 
@@ -2529,7 +2578,7 @@ public partial class IM800
 		byte newA = (byte)((a & 0xF0) | memLow);
 		byte newMem = (byte)((aLow << 4) | memHigh);
 
-		Result<Bus.MemoryOperation> writeHLResult = _memoryBus.Write(hl, Constants.DataSize.Byte, newMem);
+		Result<MemoryOperation> writeHLResult = _memoryBus.Write(hl, Constants.DataSize.Byte, newMem);
 		result.ResultObject += writeHLResult.ResultObject.Cycles;
 
 		ALUFlagState flagState = GetALUFlags();
@@ -2546,14 +2595,14 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteNOP(DecodedOperation operation)
+	private Result<int> ExecuteNOP(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 		Result<int> result = new(operation.FetchCycles + 1);
 		return result;
 	}
 
-	public Result<int> ExecuteJP(DecodedOperation operation)
+	private Result<int> ExecuteJP(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -2561,7 +2610,7 @@ public partial class IM800
 
 		if (IsConditionTrue(operation.Condition))
 		{
-			Result<Bus.MemoryOperation> addressReadResult = ReadOperand(operation.Destination);
+			Result<MemoryOperation> addressReadResult = ReadOperand(operation.Destination);
 			result.Combine(addressReadResult);
 			result.ResultObject += addressReadResult.ResultObject.Cycles;
 
@@ -2571,7 +2620,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteJR(DecodedOperation operation)
+	private Result<int> ExecuteJR(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -2579,7 +2628,7 @@ public partial class IM800
 
 		if (IsConditionTrue(operation.Condition))
 		{
-			Result<Bus.MemoryOperation> addressReadResult = ReadOperand(operation.Destination);
+			Result<MemoryOperation> addressReadResult = ReadOperand(operation.Destination);
 			result.Combine(addressReadResult);
 			result.ResultObject += addressReadResult.ResultObject.Cycles;
 
@@ -2606,7 +2655,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteDJNZ(DecodedOperation operation)
+	private Result<int> ExecuteDJNZ(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -2628,7 +2677,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteJAZ(DecodedOperation operation)
+	private Result<int> ExecuteJAZ(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -2648,7 +2697,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteJANZ(DecodedOperation operation)
+	private Result<int> ExecuteJANZ(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -2668,7 +2717,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteCALL(DecodedOperation operation)
+	private Result<int> ExecuteCALL(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -2677,11 +2726,11 @@ public partial class IM800
 		if (IsConditionTrue(operation.Condition))
 		{
 			uint pc = _registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
-			Result<Bus.MemoryOperation> pushResult = InternalPush(pc);
+			Result<MemoryOperation> pushResult = InternalPush(pc);
 			result.Combine(pushResult);
 			result.ResultObject += pushResult.ResultObject.Cycles;
 
-			Result<Bus.MemoryOperation> addressReadResult = ReadOperand(operation.Destination);
+			Result<MemoryOperation> addressReadResult = ReadOperand(operation.Destination);
 			result.Combine(addressReadResult);
 			result.ResultObject += addressReadResult.ResultObject.Cycles;
 
@@ -2691,7 +2740,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteCR(DecodedOperation operation)
+	private Result<int> ExecuteCR(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -2700,11 +2749,11 @@ public partial class IM800
 		if (IsConditionTrue(operation.Condition))
 		{
 			uint pc = _registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
-			Result<Bus.MemoryOperation> pushResult = InternalPush(pc);
+			Result<MemoryOperation> pushResult = InternalPush(pc);
 			result.Combine(pushResult);
 			result.ResultObject += pushResult.ResultObject.Cycles;
 
-			Result<Bus.MemoryOperation> addressReadResult = ReadOperand(operation.Destination);
+			Result<MemoryOperation> addressReadResult = ReadOperand(operation.Destination);
 			result.Combine(addressReadResult);
 			result.ResultObject += addressReadResult.ResultObject.Cycles;
 
@@ -2730,7 +2779,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteRET(DecodedOperation operation)
+	private Result<int> ExecuteRET(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
@@ -2738,7 +2787,7 @@ public partial class IM800
 
 		if (IsConditionTrue(operation.Condition))
 		{
-			Result<Bus.MemoryOperation> popResult = InternalPop();
+			Result<MemoryOperation> popResult = InternalPop();
 			result.Combine(popResult);
 			result.ResultObject += popResult.ResultObject.Cycles;
 			_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.ResultObject.Data);
@@ -2747,28 +2796,49 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteRETI(DecodedOperation operation)
+	private Result<int> ExecuteRETI(DecodedOperation operation)
 	{
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+
+		_interruptBus.CompleteInterrupt();
+
+		Result<MemoryOperation> popResult = InternalPop();
+		result.Combine(popResult);
+		result.ResultObject += popResult.ResultObject.Cycles;
+		_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.ResultObject.Data);
+
 		return result;
 	}
 
-	public Result<int> ExecuteRETN(DecodedOperation operation)
+	private Result<int> ExecuteRETN(DecodedOperation operation)
 	{
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+
+		bool enableInterrupts = _registers.GetFlag(Constants.FlagMask.EnableInterruptsSave);
+		_registers.SetFlag(Constants.FlagMask.EnableInterrupts, enableInterrupts);
+
+		Result<MemoryOperation> popResult = InternalPop();
+		result.Combine(popResult);
+		result.ResultObject += popResult.ResultObject.Cycles;
+		_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.ResultObject.Data);
+
 		return result;
 	}
 
-	public Result<int> ExecuteRST(DecodedOperation operation)
+	private Result<int> ExecuteRST(DecodedOperation operation)
 	{
+		Debug.Assert(operation.Destination is not null && operation.Source is null);
+
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+
+		Result<int> serviceInterruptResult = InternalServiceInterrupt((byte)operation.Destination.Data);
+		result.Combine(serviceInterruptResult);
+		result.ResultObject += serviceInterruptResult.ResultObject;
+
 		return result;
 	}
 
-	public Result<int> ExecuteSCF(DecodedOperation operation)
+	private Result<int> ExecuteSCF(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
@@ -2779,7 +2849,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteCCF(DecodedOperation operation)
+	private Result<int> ExecuteCCF(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
@@ -2791,42 +2861,62 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteEI(DecodedOperation operation)
+	private Result<int> ExecuteEI(DecodedOperation operation)
 	{
+		Debug.Assert(operation.Destination is null && operation.Source is null);
+
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+
+		_pendingEnableInterrupts = true;
+
 		return result;
 	}
 
-	public Result<int> ExecuteDI(DecodedOperation operation)
+	private Result<int> ExecuteDI(DecodedOperation operation)
 	{
+		Debug.Assert(operation.Destination is null && operation.Source is null);
+
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+
+		_registers.SetFlag(Constants.FlagMask.EnableInterrupts, false);
+
 		return result;
 	}
 
-	public Result<int> ExecuteIM1(DecodedOperation operation)
+	private Result<int> ExecuteIM1(DecodedOperation operation)
 	{
+		Debug.Assert(operation.Destination is null && operation.Source is null);
+
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+
+		_interruptMode = 1;
+
 		return result;
 	}
 
-	public Result<int> ExecuteIM2(DecodedOperation operation)
+	private Result<int> ExecuteIM2(DecodedOperation operation)
 	{
+		Debug.Assert(operation.Destination is null && operation.Source is null);
+
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+
+		_interruptMode = 2;
+
 		return result;
 	}
 
-	public Result<int> ExecuteHALT(DecodedOperation operation)
+	private Result<int> ExecuteHALT(DecodedOperation operation)
 	{
+		Debug.Assert(operation.Destination is null && operation.Source is null);
+
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
+
+		_halted = true;
+
 		return result;
 	}
 
-	public Result<int> ExecuteLDI(DecodedOperation operation)
+	private Result<int> ExecuteLDI(DecodedOperation operation)
 	{
 		// decode only grabs the immediate in destination
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
@@ -2840,7 +2930,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteLDAR(DecodedOperation operation)
+	private Result<int> ExecuteLDAR(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
@@ -2852,7 +2942,7 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteLDRA(DecodedOperation operation)
+	private Result<int> ExecuteLDRA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
@@ -2864,134 +2954,652 @@ public partial class IM800
 		return result;
 	}
 
-	public Result<int> ExecuteBLD(DecodedOperation operation)
+	private Result<int> ExecuteBLD(DecodedOperation operation)
 	{
+		Debug.Assert(operation.Destination is null && operation.Source is null);
+
 		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
-		return result;
-	}
 
-	public Result<int> ExecuteBCP(DecodedOperation operation)
-	{
-		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
-		return result;
-	}
+		uint bc = Registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
+		uint de = Registers.Read(Constants.RegisterTarget.DE, Constants.DataSize.Dword);
+		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 
-	public Result<int> ExecuteBTST(DecodedOperation operation)
-	{
-		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
-		return result;
-	}
+		Result<MemoryOperation> readSourceResult = _memoryBus.Read(hl, operation.DataSize);
+		result.Combine(readSourceResult);
+		result.ResultObject += readSourceResult.ResultObject.Cycles;
 
-	public Result<int> ExecuteBIN(DecodedOperation operation)
-	{
-		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
-		return result;
-	}
+		Result<MemoryOperation> writeDestResult = _memoryBus.Write(
+			de,
+			operation.DataSize,
+			readSourceResult.ResultObject.Data
+		);
+		result.Combine(writeDestResult);
+		result.ResultObject += writeDestResult.ResultObject.Cycles;
 
-	public Result<int> ExecuteBOUT(DecodedOperation operation)
-	{
-		Result<int> result = new(operation.FetchCycles + 1);
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
-		return result;
-	}
+		uint adjustAmount = 0;
 
-	public Result<Bus.MemoryOperation> ReadOperand(Operand operand)
-	{
-		Bus.MemoryOperation memoryOperation = new();
-		Result<Bus.MemoryOperation> result = new(memoryOperation);
-
-		if (operand.Indirect)
+		switch (operation.DataSize)
 		{
-			uint address = GetEffectiveAddress(operand);
-			result = _memoryBus.Read(address, operand.DataSize);
+			case Constants.DataSize.Byte:
+			{
+				adjustAmount = 1;
+				break;
+			}
+			case Constants.DataSize.Word:
+			{
+				adjustAmount = 2;
+				break;
+			}
+			case Constants.DataSize.Dword:
+			{
+				adjustAmount = 4;
+				break;
+			}
+			default:
+			{
+				result.AddError("ExecuteBLD", $"invalid size for BLD: {operation.DataSize}");
+				break;
+			}
+		}
+
+		// Increment/Decrement pointers
+		if (operation.Increment)
+		{
+			hl += adjustAmount;
+			de += adjustAmount;
 		}
 		else
 		{
-			if (operand.Register != default)
+			hl -= adjustAmount;
+			de -= adjustAmount;
+		}
+
+		// Decrement counter and update flags
+		bc--;
+
+		ALUFlagState flagState = GetALUFlags();
+		flagState.HalfCarry = false;
+		flagState.Subtract = false;
+		flagState.ParityOverflow = bc != 0;
+		UpdateALUFlags(flagState);
+
+		// Writeback registers
+		Registers.Write(Constants.RegisterTarget.BC, Constants.DataSize.Dword, bc);
+		Registers.Write(Constants.RegisterTarget.DE, Constants.DataSize.Dword, de);
+		Registers.Write(Constants.RegisterTarget.HL, Constants.DataSize.Dword, hl);
+
+		// if Parity/Overflow is true (BC != 0), continue
+		if (operation.Repeat && Registers.GetFlag(Constants.FlagMask.ParityOverflow))
+		{
+			// Undo PC increment
+			uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			pc -= operation.Length;
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
+
+			// Set up to repeat
+			if (_currentBlockOperation is null)
 			{
-				memoryOperation.Data = _registers.Read(operand.Register, operand.DataSize);
+				// Further fetches cost nothing
+				operation.FetchCycles = 0;
+				_currentBlockOperation = operation;
 			}
-			else
-			{
-				memoryOperation.Data = operand.Data;
-			}
+		}
+		// Done
+		else
+		{
+			_currentBlockOperation = null;
 		}
 
 		return result;
 	}
 
-	public Result<Bus.MemoryOperation> WriteOperand(Operand operand, uint data)
+	private Result<int> ExecuteBCP(DecodedOperation operation)
 	{
-		Bus.MemoryOperation memoryOperation = new();
-		Result<Bus.MemoryOperation> result = new(memoryOperation);
+		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		if (operand.Indirect)
+		Result<int> result = new(operation.FetchCycles + 1);
+
+		Constants.RegisterTarget afRegisterTarget;
+		if (operation.DataSize == Constants.DataSize.Dword)
 		{
-			uint address = GetEffectiveAddress(operand);
-			result = _memoryBus.Write(address, operand.DataSize, data);
+			afRegisterTarget = Constants.RegisterTarget.AF;
 		}
 		else
 		{
-			if (operand.Register == default)
+			afRegisterTarget = Constants.RegisterTarget.A;
+		}
+
+		uint af = Registers.Read(afRegisterTarget, operation.DataSize);
+		uint bc = Registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
+		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
+
+		Result<MemoryOperation> readSourceResult = _memoryBus.Read(hl, operation.DataSize);
+		result.Combine(readSourceResult);
+		result.ResultObject += readSourceResult.ResultObject.Cycles;
+
+		uint data = af;
+		ALUFlagState flagState = GetALUFlags();
+
+		switch (operation.DataSize)
+		{
+			case Constants.DataSize.Byte:
 			{
-				result.AddError("WriteOperand", "tried to write back to an immediate operand");
+				byte a = (byte)af;
+				byte b = (byte)readSourceResult.ResultObject.Data;
+
+				data = (byte)(a - b);
+
+				flagState.Carry = BitHelper.WillSubtractionWrap(a, b);
+				flagState.HalfCarry = BitHelper.WillSubtractionHalfCarry(a, b);
+				flagState.Sign = (data & 0x80) != 0;
+
+				break;
 			}
-			else
+			case Constants.DataSize.Word:
 			{
-				_registers.Write(operand.Register, operand.DataSize, data);
+				ushort a = (ushort)af;
+				ushort b = (ushort)readSourceResult.ResultObject.Data;
+
+				data = (ushort)(a - b);
+
+				flagState.Carry = BitHelper.WillSubtractionWrap(a, b);
+				flagState.HalfCarry = BitHelper.WillSubtractionHalfCarry(a, b);
+				flagState.Sign = (data & 0x8000) != 0;
+
+				break;
 			}
+			case Constants.DataSize.Dword:
+			{
+				result.ResultObject += Constants.DwordALUCost;
+
+				uint a = af;
+				uint b = readSourceResult.ResultObject.Data;
+
+				data = a - b;
+
+				flagState.Carry = BitHelper.WillSubtractionWrap(a, b);
+				flagState.HalfCarry = BitHelper.WillSubtractionHalfCarry(a, b);
+				flagState.Sign = (data & 0x80000000) != 0;
+
+				break;
+			}
+			default:
+			{
+				result.AddError($"InternalCompare", $"invalid size for compare: {operation.DataSize}");
+				break;
+			}
+		}
+
+		flagState.Subtract = true;
+		flagState.Zero = data == 0;
+
+		uint adjustAmount = 0;
+
+		switch (operation.DataSize)
+		{
+			case Constants.DataSize.Byte:
+			{
+				adjustAmount = 1;
+				break;
+			}
+			case Constants.DataSize.Word:
+			{
+				adjustAmount = 2;
+				break;
+			}
+			case Constants.DataSize.Dword:
+			{
+				adjustAmount = 4;
+				break;
+			}
+			default:
+			{
+				result.AddError("ExecuteBCP", $"invalid size for BCP: {operation.DataSize}");
+				break;
+			}
+		}
+
+		// Increment/Decrement pointers
+		if (operation.Increment)
+		{
+			hl += adjustAmount;
+		}
+		else
+		{
+			hl -= adjustAmount;
+		}
+
+		// Decrement counter and update flags
+		bc--;
+
+		flagState.HalfCarry = false;
+		flagState.Subtract = false;
+		flagState.ParityOverflow = bc != 0;
+		UpdateALUFlags(flagState);
+
+		// Writeback registers
+		Registers.Write(Constants.RegisterTarget.BC, Constants.DataSize.Dword, bc);
+		Registers.Write(Constants.RegisterTarget.HL, Constants.DataSize.Dword, hl);
+
+		// if not Zero and Parity/Overflow is true (BC != 0), continue
+		if (!flagState.Zero && operation.Repeat && Registers.GetFlag(Constants.FlagMask.ParityOverflow))
+		{
+			// Undo PC increment
+			uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			pc -= operation.Length;
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
+
+			// Set up to repeat
+			if (_currentBlockOperation is null)
+			{
+				// Further fetches cost nothing
+				operation.FetchCycles = 0;
+				_currentBlockOperation = operation;
+			}
+		}
+		// Done
+		else
+		{
+			_currentBlockOperation = null;
 		}
 
 		return result;
 	}
 
-	private uint GetEffectiveAddress(Operand operand)
+	private Result<int> ExecuteBTST(DecodedOperation operation)
 	{
-		uint address;
+		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		if (operand.Register != default)
+		Result<int> result = new(operation.FetchCycles + 1);
+
+		Constants.RegisterTarget afRegisterTarget;
+		if (operation.DataSize == Constants.DataSize.Dword)
 		{
-			address = _registers.Read(operand.Register, Constants.DataSize.Dword);
+			afRegisterTarget = Constants.RegisterTarget.AF;
 		}
 		else
 		{
-			address = operand.Data;
+			afRegisterTarget = Constants.RegisterTarget.A;
 		}
 
-		if (operand.Register
-			is Constants.RegisterTarget.IX
-			or Constants.RegisterTarget.IY
-			or Constants.RegisterTarget.SP
-		)
+		uint af = Registers.Read(afRegisterTarget, operation.DataSize);
+		uint bc = Registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
+		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
+
+		Result<MemoryOperation> readSourceResult = _memoryBus.Read(hl, operation.DataSize);
+		result.Combine(readSourceResult);
+		result.ResultObject += readSourceResult.ResultObject.Cycles;
+
+		uint data = af;
+		ALUFlagState flagState = GetALUFlags();
+
+		switch (operation.DataSize)
 		{
-			address = (uint)((int)address + operand.Displacement);
+			case Constants.DataSize.Byte:
+			{
+				byte a = (byte)af;
+				byte b = (byte)readSourceResult.ResultObject.Data;
+
+				data = (byte)(a & b);
+
+				flagState.Carry = BitHelper.WillAdditionWrap(a, b);
+				flagState.HalfCarry = BitHelper.WillAdditionHalfCarry(a, b);
+				flagState.Sign = (data & 0x80) != 0;
+
+				break;
+			}
+			case Constants.DataSize.Word:
+			{
+				ushort a = (ushort)af;
+				ushort b = (ushort)readSourceResult.ResultObject.Data;
+
+				data = (ushort)(a & b);
+
+				flagState.Sign = (data & 0x8000) != 0;
+
+				break;
+			}
+			case Constants.DataSize.Dword:
+			{
+				result.ResultObject += Constants.DwordALUCost;
+
+				uint a = af;
+				uint b = readSourceResult.ResultObject.Data;
+
+				data = a & b;
+
+				flagState.Sign = (data & 0x80000000) != 0;
+
+				break;
+			}
+			default:
+			{
+				result.AddError($"BTST", $"invalid size for BTST: {operation.DataSize}");
+				break;
+			}
 		}
 
-		return address;
+		flagState.Carry = false;
+		flagState.HalfCarry = true;
+		flagState.Subtract = false;
+		flagState.Zero = data == 0;
+
+		uint adjustAmount = 0;
+
+		switch (operation.DataSize)
+		{
+			case Constants.DataSize.Byte:
+			{
+				adjustAmount = 1;
+				break;
+			}
+			case Constants.DataSize.Word:
+			{
+				adjustAmount = 2;
+				break;
+			}
+			case Constants.DataSize.Dword:
+			{
+				adjustAmount = 4;
+				break;
+			}
+			default:
+			{
+				result.AddError("ExecuteBCP", $"invalid size for BCP: {operation.DataSize}");
+				break;
+			}
+		}
+
+		// Increment/Decrement pointers
+		if (operation.Increment)
+		{
+			hl += adjustAmount;
+		}
+		else
+		{
+			hl -= adjustAmount;
+		}
+
+		// Decrement counter and update flags
+		bc--;
+
+		flagState.HalfCarry = false;
+		flagState.Subtract = false;
+		flagState.ParityOverflow = bc != 0;
+		UpdateALUFlags(flagState);
+
+		// Writeback registers
+		Registers.Write(Constants.RegisterTarget.BC, Constants.DataSize.Dword, bc);
+		Registers.Write(Constants.RegisterTarget.HL, Constants.DataSize.Dword, hl);
+
+		// if not Zero and Parity/Overflow is true (BC != 0), continue
+		if (!flagState.Zero && operation.Repeat && Registers.GetFlag(Constants.FlagMask.ParityOverflow))
+		{
+			// Undo PC increment
+			uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			pc -= operation.Length;
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
+
+			// Set up to repeat
+			if (_currentBlockOperation is null)
+			{
+				// Further fetches cost nothing
+				operation.FetchCycles = 0;
+				_currentBlockOperation = operation;
+			}
+		}
+		// Done
+		else
+		{
+			_currentBlockOperation = null;
+		}
+
+		return result;
 	}
 
-	private Result<Bus.MemoryOperation> InternalPush(uint value)
+	private Result<int> ExecuteBIN(DecodedOperation operation)
+	{
+		Debug.Assert(operation.Destination is null && operation.Source is null);
+
+		Result<int> result = new(operation.FetchCycles + 1);
+
+		uint bc = Registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
+		uint de = Registers.Read(Constants.RegisterTarget.DE, Constants.DataSize.Dword);
+		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
+
+		Result<MemoryOperation> readPortResult = _ioBus.Read(hl, operation.DataSize);
+		result.Combine(readPortResult);
+		result.ResultObject += readPortResult.ResultObject.Cycles;
+
+		Result<MemoryOperation> writeDestResult = _memoryBus.Write(
+			de,
+			operation.DataSize,
+			readPortResult.ResultObject.Data
+		);
+		result.Combine(writeDestResult);
+		result.ResultObject += writeDestResult.ResultObject.Cycles;
+
+		uint adjustAmount = 0;
+
+		switch (operation.DataSize)
+		{
+			case Constants.DataSize.Byte:
+			{
+				adjustAmount = 1;
+				break;
+			}
+			case Constants.DataSize.Word:
+			{
+				adjustAmount = 2;
+				break;
+			}
+			case Constants.DataSize.Dword:
+			{
+				adjustAmount = 4;
+				break;
+			}
+			default:
+			{
+				result.AddError("ExecuteBLD", $"invalid size for BLD: {operation.DataSize}");
+				break;
+			}
+		}
+
+		// Increment/Decrement memory pointer (not port)
+		if (operation.Increment)
+		{
+			de += adjustAmount;
+		}
+		else
+		{
+			de -= adjustAmount;
+		}
+
+		// Decrement counter and update flags
+		bc--;
+
+		ALUFlagState flagState = GetALUFlags();
+		flagState.HalfCarry = false;
+		flagState.Subtract = false;
+		flagState.ParityOverflow = bc != 0;
+		UpdateALUFlags(flagState);
+
+		// Writeback registers
+		Registers.Write(Constants.RegisterTarget.BC, Constants.DataSize.Dword, bc);
+		Registers.Write(Constants.RegisterTarget.DE, Constants.DataSize.Dword, de);
+		Registers.Write(Constants.RegisterTarget.HL, Constants.DataSize.Dword, hl);
+
+		// if Parity/Overflow is true (BC != 0), continue
+		if (operation.Repeat && Registers.GetFlag(Constants.FlagMask.ParityOverflow))
+		{
+			// Undo PC increment
+			uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			pc -= operation.Length;
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
+
+			// Set up to repeat
+			if (_currentBlockOperation is null)
+			{
+				// Further fetches cost nothing
+				operation.FetchCycles = 0;
+				_currentBlockOperation = operation;
+			}
+		}
+		// Done
+		else
+		{
+			_currentBlockOperation = null;
+		}
+
+		return result;
+	}
+
+	private Result<int> ExecuteBOUT(DecodedOperation operation)
+	{
+		Debug.Assert(operation.Destination is null && operation.Source is null);
+
+		Result<int> result = new(operation.FetchCycles + 1);
+
+		uint bc = Registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
+		uint de = Registers.Read(Constants.RegisterTarget.DE, Constants.DataSize.Dword);
+		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
+
+		Result<MemoryOperation> readPortResult = _ioBus.Read(hl, operation.DataSize);
+		result.Combine(readPortResult);
+		result.ResultObject += readPortResult.ResultObject.Cycles;
+
+		Result<MemoryOperation> writePortResult = _ioBus.Write(
+			de,
+			operation.DataSize,
+			readPortResult.ResultObject.Data
+		);
+		result.Combine(writePortResult);
+		result.ResultObject += writePortResult.ResultObject.Cycles;
+
+		uint adjustAmount = 0;
+
+		switch (operation.DataSize)
+		{
+			case Constants.DataSize.Byte:
+			{
+				adjustAmount = 1;
+				break;
+			}
+			case Constants.DataSize.Word:
+			{
+				adjustAmount = 2;
+				break;
+			}
+			case Constants.DataSize.Dword:
+			{
+				adjustAmount = 4;
+				break;
+			}
+			default:
+			{
+				result.AddError("ExecuteBLD", $"invalid size for BLD: {operation.DataSize}");
+				break;
+			}
+		}
+
+		// Increment/Decrement memory pointer (not port)
+		if (operation.Increment)
+		{
+			hl += adjustAmount;
+		}
+		else
+		{
+			hl -= adjustAmount;
+		}
+
+		// Decrement counter and update flags
+		bc--;
+
+		ALUFlagState flagState = GetALUFlags();
+		flagState.HalfCarry = false;
+		flagState.Subtract = false;
+		flagState.ParityOverflow = bc != 0;
+		UpdateALUFlags(flagState);
+
+		// Writeback registers
+		Registers.Write(Constants.RegisterTarget.BC, Constants.DataSize.Dword, bc);
+		Registers.Write(Constants.RegisterTarget.DE, Constants.DataSize.Dword, de);
+		Registers.Write(Constants.RegisterTarget.HL, Constants.DataSize.Dword, hl);
+
+		// if Parity/Overflow is true (BC != 0), continue
+		if (operation.Repeat && Registers.GetFlag(Constants.FlagMask.ParityOverflow))
+		{
+			// Undo PC increment
+			uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			pc -= operation.Length;
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
+
+			// Set up to repeat
+			if (_currentBlockOperation is null)
+			{
+				// Further fetches cost nothing
+				operation.FetchCycles = 0;
+				_currentBlockOperation = operation;
+			}
+		}
+		// Done
+		else
+		{
+			_currentBlockOperation = null;
+		}
+
+		return result;
+	}
+
+	private Result<MemoryOperation> InternalPush(uint value)
 	{
 		uint sp = _registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
-		Result<Bus.MemoryOperation> writeMemoryResult = _memoryBus.Write(sp, Constants.DataSize.Dword, value);
+		Result<MemoryOperation> writeMemoryResult = _memoryBus.Write(sp, Constants.DataSize.Dword, value);
 		sp -= 4;
 		_registers.Write(Constants.RegisterTarget.SP, Constants.DataSize.Dword, sp);
 
 		return writeMemoryResult;
 	}
 
-	private Result<Bus.MemoryOperation> InternalPop()
+	private Result<MemoryOperation> InternalPop()
 	{
 		uint sp = _registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
 		sp += 4;
 		_registers.Write(Constants.RegisterTarget.SP, Constants.DataSize.Dword, sp);
 
-		Result<Bus.MemoryOperation> readMemoryResult = _memoryBus.Read(sp, Constants.DataSize.Dword);
+		Result<MemoryOperation> readMemoryResult = _memoryBus.Read(sp, Constants.DataSize.Dword);
 
 		return readMemoryResult;
+	}
+
+	private Result<int> InternalServiceInterrupt(byte interruptNumber)
+	{
+		Result<int> result = new(0);
+
+		// Wake from halt if necessary
+		_halted = false;
+
+		// Cancel any executing block operation (will be re-fetched on return)
+		_currentBlockOperation = null;
+
+		// Push PC to the stack
+		uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+		Result<MemoryOperation> pushResult = InternalPush(pc);
+		result.Combine(pushResult);
+		result.ResultObject += pushResult.ResultObject.Cycles;
+
+		// Get the vector address from the IVT (I << 10) + (interruptNumber << 2)
+		uint vectorAddress = Registers.Read(Constants.RegisterTarget.I, Constants.DataSize.Dword) << 10;
+		vectorAddress |= (uint)(interruptNumber << 2);
+
+		// Read the service routine vector from the vector address
+		Result<MemoryOperation> vectorReadResult = _memoryBus.Read(vectorAddress, Constants.DataSize.Dword);
+		result.Combine(vectorReadResult);
+		result.ResultObject += vectorReadResult.ResultObject.Cycles;
+
+		// Jump to the service routine vector
+		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, vectorReadResult.ResultObject.Data);
+
+		return result;
 	}
 }

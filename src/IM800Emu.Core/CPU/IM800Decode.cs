@@ -207,7 +207,7 @@ public partial class IM800
 		}
 
 		int registerSelector = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
-		int addressRegisterSelector = (decodeResult.ResultObject.InstructionWord >> 12) & 0b111;
+		int addressRegisterSelector = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
 
 		if (
 			registerSelector == (int)Constants.RegisterSelector.Immediate
