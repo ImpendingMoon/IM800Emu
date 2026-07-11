@@ -360,16 +360,29 @@ public partial class IM800
 
 		int registerSelector = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
 
-		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
+		if (registerSelector == (int)Constants.RegisterSelector.Immediate && decodeResult.ResultObject.Operation != Constants.Operation.PUSH)
 		{
 			decodeResult.AddError(_decodeErrorName, $"Format UR cannot use an immediate value");
 			return;
 		}
 
-		decodeResult.ResultObject.Destination.Register = DecodeRegister(
+		if (registerSelector == 0b111)
+		{
+			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, size);
+			decodeResult.Combine(immediateResult);
+
+			if (!immediateResult.IsSuccess)
+			{
+				return;
+			}
+		}
+		else
+		{
+			decodeResult.ResultObject.Destination.Register = DecodeRegister(
 			registerSelector,
 			decodeResult.ResultObject.Destination.DataSize
 		);
+		}
 	}
 
 	private void DecodeFormatUM(Result<DecodedOperation> decodeResult)
