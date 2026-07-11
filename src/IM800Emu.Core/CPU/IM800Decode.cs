@@ -187,23 +187,26 @@ public partial class IM800
 			return;
 		}
 
+		Constants.DataSize sourceSize;
+		Constants.DataSize destinationSize;
+
 		// Instructions in this range use the size field for both operands
 		if (opcode < 0b10000)
 		{
-			decodeResult.ResultObject.Destination.DataSize = size;
-			decodeResult.ResultObject.Source.DataSize = size;
+			sourceSize = size;
+			destinationSize = size;
 		}
 		// LEA uses fixed sizes and reinterprets instruction size
 		else if (opcode == 0b10000)
 		{
-			decodeResult.ResultObject.Destination.DataSize = Constants.DataSize.Dword;
-			decodeResult.ResultObject.Source.DataSize = Constants.DataSize.Word;
+			sourceSize = Constants.DataSize.Word;
+			destinationSize = Constants.DataSize.Dword;
 		}
 		// Bit/shift instructions use byte-sized sources (source is shift amount)
 		else
 		{
-			decodeResult.ResultObject.Destination.DataSize = size;
-			decodeResult.ResultObject.Source.DataSize = Constants.DataSize.Byte;
+			sourceSize = Constants.DataSize.Byte;
+			destinationSize = size;
 		}
 
 		int registerSelector = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
@@ -221,146 +224,84 @@ public partial class IM800
 			return;
 		}
 
-		if (store)
+		// If store, register is the source. Else, register is the destination.
+		Constants.DataSize registerDataSize = store ? sourceSize : destinationSize;
+		Constants.DataSize memoryDataSize = store ? destinationSize : sourceSize;
+
+		Operand registerOperand = new()
 		{
-			// Address register is the decodeResult.ResultObject.Destination
-			decodeResult.ResultObject.Destination.Indirect = true;
+			DataSize = registerDataSize,
+		};
 
-			if (addressRegisterSelector == (int)Constants.RegisterSelector.Immediate)
+		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
+		{
+			if (store)
 			{
-				Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, Constants.DataSize.Dword);
-				decodeResult.Combine(immediateResult);
-				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
-
-				if (!immediateResult.IsSuccess)
-				{
-					return;
-				}
-
-				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
-			}
-			else
-			{
-				decodeResult.ResultObject.Destination.Register = DecodeRegister(
-					addressRegisterSelector,
-					Constants.DataSize.Dword
-				);
-
-				if (
-					addressRegisterSelector
-					is (int)Constants.RegisterSelector.IX
-					or (int)Constants.RegisterSelector.IY
-					or (int)Constants.RegisterSelector.SP
-				)
-				{
-					Result<MemoryOperation> displacementResult = FetchImmediate(decodeResult, Constants.DataSize.Word);
-					decodeResult.Combine(displacementResult);
-					decodeResult.ResultObject.Source.Displacement = (short)displacementResult.ResultObject.Data;
-
-					if (!displacementResult.IsSuccess)
-					{
-						return;
-					}
-
-					decodeResult.ResultObject.Destination.Displacement = (short)displacementResult.ResultObject.Data;
-				}
+				decodeResult.AddError(_decodeErrorName, $"cannot use an immediate value as a destination");
+				return;
 			}
 
-			// Register is the source
-			if (registerSelector == (int)Constants.RegisterSelector.Immediate)
-			{
-				Result<MemoryOperation> immediateResult = FetchImmediate(
-					decodeResult,
-					decodeResult.ResultObject.Source.DataSize
-				);
-				decodeResult.Combine(immediateResult);
-				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject.Data;
+			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, registerDataSize);
+			decodeResult.Combine(immediateResult);
 
-				if (!immediateResult.IsSuccess)
-				{
-					return;
-				}
-
-				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject.Data;
-			}
-			else
+			if (!immediateResult.IsSuccess)
 			{
-				decodeResult.ResultObject.Source.Register = DecodeRegister(
-					registerSelector,
-					decodeResult.ResultObject.Source.DataSize
-				);
+				return;
 			}
+
+			registerOperand.Data = immediateResult.ResultObject.Data;
 		}
 		else
 		{
-			// Address register is the source
-			decodeResult.ResultObject.Source.Indirect = true;
+			registerOperand.Register = DecodeRegister(registerSelector, registerDataSize);
+		}
 
-			if (addressRegisterSelector == (int)Constants.RegisterSelector.Immediate)
+		Operand memoryOperand = new()
+		{
+			DataSize = memoryDataSize,
+			Indirect = true,
+		};
+
+		if (addressRegisterSelector == (int)Constants.RegisterSelector.Immediate)
+		{
+			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, Constants.DataSize.Dword);
+			decodeResult.Combine(immediateResult);
+
+			if (!immediateResult.IsSuccess)
 			{
-				Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, Constants.DataSize.Dword);
-				decodeResult.Combine(immediateResult);
-				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject.Data;
+				return;
+			}
 
-				if (!immediateResult.IsSuccess)
+			memoryOperand.Data = immediateResult.ResultObject.Data;
+		}
+		else
+		{
+			memoryOperand.Register = DecodeRegister(addressRegisterSelector, Constants.DataSize.Dword);
+
+			if (
+				addressRegisterSelector
+				is (int)Constants.RegisterSelector.IX
+				or (int)Constants.RegisterSelector.IY
+				or (int)Constants.RegisterSelector.SP
+			)
+			{
+				Result<MemoryOperation> displacementResult = FetchImmediate(decodeResult, Constants.DataSize.Word);
+				decodeResult.Combine(displacementResult);
+
+				if (!displacementResult.IsSuccess)
 				{
 					return;
 				}
 
-				decodeResult.ResultObject.Source.Data = immediateResult.ResultObject.Data;
-			}
-			else
-			{
-				decodeResult.ResultObject.Source.Register = DecodeRegister(
-					addressRegisterSelector,
-					Constants.DataSize.Dword
-				);
-
-				if (
-					addressRegisterSelector
-					is (int)Constants.RegisterSelector.IX
-					or (int)Constants.RegisterSelector.IY
-					or (int)Constants.RegisterSelector.SP
-				)
-				{
-					Result<MemoryOperation> displacementResult = FetchImmediate(decodeResult, Constants.DataSize.Word);
-					decodeResult.Combine(displacementResult);
-					decodeResult.ResultObject.Source.Data = displacementResult.ResultObject.Data;
-
-					if (!displacementResult.IsSuccess)
-					{
-						return;
-					}
-
-					decodeResult.ResultObject.Source.Displacement = (short)displacementResult.ResultObject.Data;
-				}
-			}
-
-			// Register is the Destination
-			if (registerSelector == (int)Constants.RegisterSelector.Immediate)
-			{
-				Result<MemoryOperation> immediateResult = FetchImmediate(
-					decodeResult,
-					decodeResult.ResultObject.Destination.DataSize
-				);
-				decodeResult.Combine(immediateResult);
-				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
-
-				if (!immediateResult.IsSuccess)
-				{
-					return;
-				}
-
-				decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
-			}
-			else
-			{
-				decodeResult.ResultObject.Destination.Register = DecodeRegister(
-					registerSelector,
-					decodeResult.ResultObject.Source.DataSize
-				);
+				memoryOperand.Displacement = (short)displacementResult.ResultObject.Data;
 			}
 		}
+
+		Operand destinationOperand = store ? memoryOperand : registerOperand;
+		Operand sourceOperand = store ? registerOperand : memoryOperand;
+
+		decodeResult.ResultObject.Destination = destinationOperand;
+		decodeResult.ResultObject.Source = sourceOperand;
 	}
 
 	private void DecodeFormatUR(Result<DecodedOperation> decodeResult)
@@ -372,10 +313,8 @@ public partial class IM800
 		// 12:10 Register
 		// 15:13 Function
 
-		decodeResult.ResultObject.Destination = new()
-		{
-			Indirect = true
-		};
+		decodeResult.ResultObject.Destination = new();
+
 		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b1111;
 		int function = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
 		int operationSelector = (opcode << 3) | function;
@@ -583,6 +522,8 @@ public partial class IM800
 			case 0b01000:
 			{
 				decodeResult.ResultObject.Operation = Constants.Operation.RET;
+				decodeResult.ResultObject.DataSize = Constants.DataSize.None;
+				decodeResult.ResultObject.Destination = null;
 				break;
 			}
 			default:
@@ -592,6 +533,8 @@ public partial class IM800
 				break;
 			}
 		}
+
+		decodeResult.ResultObject.Destination?.DataSize = decodeResult.ResultObject.DataSize;
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
@@ -625,18 +568,16 @@ public partial class IM800
 		{
 			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, decodeResult.ResultObject.DataSize);
 			decodeResult.Combine(immediateResult);
-			decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
+			decodeResult.ResultObject.Destination!.Data = immediateResult.ResultObject.Data;
 
 			if (!immediateResult.IsSuccess)
 			{
 				return;
 			}
-
-			decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
 		}
-		else
+		else if (decodeResult.ResultObject.Operation != Constants.Operation.RET)
 		{
-			decodeResult.ResultObject.Destination.Register = DecodeRegister(
+			decodeResult.ResultObject.Destination!.Register = DecodeRegister(
 				registerSelector,
 				decodeResult.ResultObject.Destination.DataSize
 			);
@@ -752,6 +693,7 @@ public partial class IM800
 		else
 		{
 			uint data = (uint)(decodeResult.ResultObject.InstructionWord >> 8);
+			decodeResult.ResultObject.DataSize = Constants.DataSize.Byte;
 			decodeResult.ResultObject.Destination = new()
 			{
 				DataSize = Constants.DataSize.Byte,

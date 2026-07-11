@@ -11,22 +11,34 @@ public class Machine
 	private readonly Bus.MemoryBus _memoryBus;
 	private readonly Bus.MemoryBus _ioBus;
 	private readonly Bus.InterruptBus _interruptBus;
+	private readonly int _cyclesPerFrame = Constants.CpuSpeedHz / Constants.TargetFramerate;
+	private int _cycleRemainder = 0;
 
-	/// <summary>
-	///
-	/// </summary>
-	/// <param name="startupRom"></param>
 	public Machine(byte[] startupRom)
 	{
 		RAMDevice rom = new(startupRom, true);
 		RAMDevice ram = new(0x40000);
 
 		_memoryBus = new Bus.MemoryBus();
-		_ioBus = new Bus.MemoryBus();
-		_interruptBus = new Bus.InterruptBus();
 
-		_memoryBus.AddDevice(rom, 0x0000_0000, rom.Length);
-		_memoryBus.AddDevice(ram, 0x0020_0000, ram.Length);
+		// Address space is first decoded into 2 MiB chunks (16 MiB address space / 8)
+
+		// First 2 MiB Chunk: BIOS
+		// BIOS ROM mapped to 0x00_0000-0x03_FFFF (256 KiB)
+		// BIOS extension ROMs follow in 256KB blocks until 0x1F_FFFF
+		_memoryBus.AddDevice(rom, 0x00_0000, 0x03_FFFF);
+
+		// Second 2 MiB Chunk: RAM
+		// RAM starts at 0x20_000, first chunk ends at 0x3F_FFFF
+		_memoryBus.AddDevice(ram, 0x20_0000, 0x3F_FFFF);
+
+		ConsoleDevice consoleDevice = new();
+
+		_ioBus = new Bus.MemoryBus();
+
+		_ioBus.AddDevice(consoleDevice, 0, consoleDevice.Length);
+
+		_interruptBus = new Bus.InterruptBus();
 
 		_cpu = new CPU.IM800(_memoryBus, _ioBus, _interruptBus);
 		Result resetResult = _cpu.Reset();
@@ -36,28 +48,44 @@ public class Machine
 		}
 	}
 
-	/// <summary>
-	///
-	/// </summary>
 	public Result StepFrame()
 	{
 		Result result = new();
 
-		Result<CPU.DecodedOperation> decodeResult = _cpu.Decode();
-		result.Combine(decodeResult);
+		int budget = _cyclesPerFrame + _cycleRemainder;
 
-		if (decodeResult.IsSuccess)
+		while (budget > 0)
 		{
-			Console.WriteLine($"Executing {decodeResult.ResultObject}");
-			Result<int> executeResult = _cpu.Execute(decodeResult.ResultObject);
-			result.Combine(executeResult);
+			Result<CPU.DecodedOperation> decodeResult = _cpu.Decode();
+			result.Combine(decodeResult);
+			int cyclesUsed = decodeResult.ResultObject.FetchCycles;
 
-			Console.WriteLine($"Took {executeResult.ResultObject} cycles");
-			Console.WriteLine(_cpu.Registers.GetFullDisplayString());
-			Console.WriteLine(new string('=', 80));
+			if (decodeResult.IsSuccess)
+			{
+				Result<int> executeResult = _cpu.Execute(decodeResult.ResultObject);
+				result.Combine(executeResult);
+				cyclesUsed = executeResult.ResultObject;
+			}
+
+			if (cyclesUsed == 0)
+			{
+				cyclesUsed = 7;
+			}
+			budget -= cyclesUsed;
+
+			if (!result.IsSuccess)
+			{
+				foreach (var error in result.Errors)
+				{
+					Console.WriteLine(error);
+				}
+
+				Console.WriteLine($"Instruction: {decodeResult.ResultObject} at 0x{decodeResult.ResultObject.BaseAddress}");
+				Console.WriteLine($"Registers: {_cpu.Registers}");
+			}
 		}
 
-		Thread.Sleep(500);
+		_cycleRemainder = budget;
 
 		return result;
 	}

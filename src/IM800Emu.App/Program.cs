@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using IM800Emu.Core;
 using IM800Emu.Core.Machine;
 
@@ -42,16 +43,30 @@ internal class Program
 
 		var machine = new Machine(startupRom);
 
+		Run(machine);
+	}
+
+	private static void Run(Machine machine)
+	{
+		double frameIntervalMs = 1000.0 / Constants.TargetFramerate;
+		var stopwatch = new Stopwatch();
+
 		while (true)
 		{
+			stopwatch.Restart();
+
 			Result result = machine.StepFrame();
-			if (!result.IsSuccess)
+
+			double elapsedMs = stopwatch.ElapsedMilliseconds;
+			double sleepMs = frameIntervalMs - elapsedMs;
+
+			if (sleepMs > 0)
 			{
-				foreach (Result.Error error in result.Errors)
-				{
-					Console.WriteLine(error);
-				}
-				return;
+				Thread.Sleep((int)sleepMs);
+			}
+			else
+			{
+				Console.WriteLine("Emulator overloaded!");
 			}
 		}
 	}

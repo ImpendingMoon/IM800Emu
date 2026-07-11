@@ -101,8 +101,8 @@ public partial class IM800
 
 	private Result<int> ExecutePUSH(DecodedOperation operation)
 	{
-		// [sp] <- dest
 		// sp <- sp - 4
+		// [sp] <- dest
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -121,8 +121,8 @@ public partial class IM800
 
 	private Result<int> ExecutePOP(DecodedOperation operation)
 	{
-		// sp <- sp + 4
 		// dest <- [sp]
+		// sp <- sp + 4
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
@@ -299,7 +299,7 @@ public partial class IM800
 		// IN
 		else
 		{
-			uint port = GetEffectiveAddress(operation.Destination);
+			uint port = GetEffectiveAddress(operation.Source);
 			Result<MemoryOperation> readPortResult = _ioBus.Read(port, operation.DataSize);
 			result.Combine(readPortResult);
 			result.ResultObject += readPortResult.ResultObject.Cycles;
@@ -1349,9 +1349,6 @@ public partial class IM800
 
 				data = (byte)(a & b);
 
-				flagState.Carry = BitHelper.WillAdditionWrap(a, b);
-				flagState.ParityOverflow = BitHelper.WillAdditionOverflow(a, b);
-				flagState.HalfCarry = BitHelper.WillAdditionHalfCarry(a, b);
 				flagState.Sign = (data & 0x80) != 0;
 
 				break;
@@ -2668,7 +2665,7 @@ public partial class IM800
 		if (b != 0)
 		{
 			int pc = (int)_registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
-			int displacement = (int)operation.Destination.Data;
+			int displacement = (int)BitHelper.SignExtend(operation.Destination.Data, 8);
 			pc += displacement;
 			_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
 			result.ResultObject += 2;
@@ -2688,7 +2685,7 @@ public partial class IM800
 		if (a == 0)
 		{
 			int pc = (int)_registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
-			int displacement = (int)operation.Destination.Data;
+			int displacement = (int)BitHelper.SignExtend(operation.Destination.Data, 8);
 			pc += displacement;
 			_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
 			result.ResultObject += 2;
@@ -2708,7 +2705,7 @@ public partial class IM800
 		if (a != 0)
 		{
 			int pc = (int)_registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
-			int displacement = (int)operation.Destination.Data;
+			int displacement = (int)BitHelper.SignExtend(operation.Destination.Data, 8);
 			pc += displacement;
 			_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
 			result.ResultObject += 2;
@@ -3554,9 +3551,9 @@ public partial class IM800
 	private Result<MemoryOperation> InternalPush(uint value)
 	{
 		uint sp = _registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
-		Result<MemoryOperation> writeMemoryResult = _memoryBus.Write(sp, Constants.DataSize.Dword, value);
 		sp -= 4;
 		_registers.Write(Constants.RegisterTarget.SP, Constants.DataSize.Dword, sp);
+		Result<MemoryOperation> writeMemoryResult = _memoryBus.Write(sp, Constants.DataSize.Dword, value);
 
 		return writeMemoryResult;
 	}
@@ -3564,10 +3561,9 @@ public partial class IM800
 	private Result<MemoryOperation> InternalPop()
 	{
 		uint sp = _registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
+		Result<MemoryOperation> readMemoryResult = _memoryBus.Read(sp, Constants.DataSize.Dword);
 		sp += 4;
 		_registers.Write(Constants.RegisterTarget.SP, Constants.DataSize.Dword, sp);
-
-		Result<MemoryOperation> readMemoryResult = _memoryBus.Read(sp, Constants.DataSize.Dword);
 
 		return readMemoryResult;
 	}
