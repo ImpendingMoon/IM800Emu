@@ -19,15 +19,17 @@ internal class ConsoleDevice : IMemoryDevice
 	public const byte StatusTxReadyBit = 0b0000_0010;
 
 	private readonly Stream _stdout = Console.OpenStandardOutput();
+	private readonly Machine.MachineContext _machineContext;
 
-	public ConsoleDevice()
+	public ConsoleDevice(Machine.MachineContext machineContext)
 	{
-		Console.WriteLine("Virtual Console Device being used. Press Ctrl+D (EOF) to exit.");
+		_machineContext = machineContext;
+		Console.WriteLine("Virtual Console Device being used. Press Ctrl+D (EOF) to exit. Press Ctrl+P to enter the debugger.");
 	}
 
 	public uint Length => 4;
 
-	private static byte BuildStatus()
+	private byte BuildStatus()
 	{
 		byte status = StatusTxReadyBit;
 
@@ -39,7 +41,7 @@ internal class ConsoleDevice : IMemoryDevice
 		return status;
 	}
 
-	private static byte ReadRx()
+	private byte ReadRx()
 	{
 		if (!Console.KeyAvailable)
 		{
@@ -59,9 +61,17 @@ internal class ConsoleDevice : IMemoryDevice
 			data = '\n';
 		}
 
-		if (key.Key == ConsoleKey.D && key.Modifiers.HasFlag(ConsoleModifiers.Control))
+		if (key.Modifiers.HasFlag(ConsoleModifiers.Control))
 		{
-			Environment.Exit(1);
+			if (key.Key == ConsoleKey.D)
+			{
+				Environment.Exit(1);
+			}
+			else if (key.Key == ConsoleKey.P)
+			{
+				_machineContext.Paused = true;
+				return 0x00;
+			}
 		}
 
 		return (byte)data;

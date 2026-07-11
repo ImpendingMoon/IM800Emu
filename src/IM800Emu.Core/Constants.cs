@@ -148,4 +148,10 @@ public static class Constants
 		Subtract = 0b0000_0010,
 		Carry = 0b0000_0001,
 	}
+
+	public enum SymbolType
+	{
+		Label,
+		EQU,
+	}
 }

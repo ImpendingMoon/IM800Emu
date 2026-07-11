@@ -7,12 +7,13 @@ namespace IM800Emu.Core.Machine;
 public class Machine
 {
 	private MachineContext _context;
-	private Debugger _debugger;
 
-	public Machine(byte[] startupRom)
+	public Machine(byte[] startupRom, List<Symbol> symbols)
 	{
 		_context = new();
-		_debugger = new(_context);
+		Debugger.AttachDebugger(_context);
+
+		_context.AddSymbols(symbols);
 
 		RAMDevice rom = new(startupRom, readOnly: true);
 		RAMDevice ram = new(0x40000);
@@ -28,7 +29,7 @@ public class Machine
 		// RAM starts at 0x20_000, first chunk ends at 0x3F_FFFF
 		_context.MemoryBus.AddDevice(ram, 0x20_0000, 0x3F_FFFF);
 
-		ConsoleDevice consoleDevice = new();
+		ConsoleDevice consoleDevice = new(_context);
 
 		_context.IoBus.AddDevice(consoleDevice, 0, consoleDevice.Length);
 
@@ -80,8 +81,11 @@ public class Machine
 					Console.WriteLine(error);
 				}
 
-				Console.WriteLine($"Instruction: {decodeResult.ResultObject} at 0x{decodeResult.ResultObject.BaseAddress}");
-				Console.WriteLine($"Registers: {_context.Cpu.Registers}");
+				string pcString = Debugger.GetNamedAddress(_context, decodeResult.ResultObject.BaseAddress);
+				Console.WriteLine(
+					$"Instruction: {decodeResult.ResultObject} at {pcString}"
+				);
+				Console.WriteLine($"Registers: {_context.GetStandardRegisterDisplayString()}");
 				_context.Paused = true;
 			}
 
@@ -93,14 +97,17 @@ public class Machine
 				Result<DecodedOperation> nextOperation = _context.Cpu.Decode();
 				if (nextOperation.IsSuccess)
 				{
-					Console.WriteLine($"Next Operation: {nextOperation.ResultObject} at 0x{nextOperation.ResultObject.BaseAddress:X8}");
+					string pcString = Debugger.GetNamedAddress(_context, decodeResult.ResultObject.BaseAddress);
+					Console.WriteLine(
+						$"Next Operation: {nextOperation.ResultObject} at {pcString}"
+					);
 				}
 				else
 				{
-					Console.WriteLine($"Data at PC is not a valid instruction.");
+					Console.WriteLine($"Not a valid instruction.");
 				}
 
-				Console.WriteLine(_context.Cpu.Registers);
+				Console.WriteLine(_context.GetStandardRegisterDisplayString());
 				Console.WriteLine();
 			}
 

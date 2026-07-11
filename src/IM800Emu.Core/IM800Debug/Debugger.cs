@@ -4,18 +4,16 @@ using IM800Emu.Core.Machine;
 
 namespace IM800Emu.Core.IM800Debug;
 
-public class Debugger
+public static class Debugger
 {
-	private MachineContext _context;
-
-	public Debugger(MachineContext context)
+	public static void AttachDebugger(MachineContext context)
 	{
-		_context = context;
-		_context.SetBreakpointInstructionHandler(HandleBreakpointInstruction);
-		_context.SetPauseStateHandler(HandlePauseState);
+		context.SetBreakpointInstructionHandler(HandleBreakpointInstruction);
+		context.SetPauseStateHandler(HandlePauseState);
+		context.SetRegisterDisplayStringHandlers(GetStandardRegisterDisplayString, GetFullRegisterDisplayString);
 	}
 
-	private void HandlePauseState(MachineContext context)
+	public static void HandlePauseState(MachineContext context)
 	{
 		Console.WriteLine("Emulator Paused. Press Enter to Continue, Esc to Quit, S to step.");
 
@@ -42,10 +40,17 @@ public class Debugger
 		}
 	}
 
-	private void HandleBreakpointInstruction(MachineContext context, uint baseAddress, uint code)
+	// 0 = Pause
+	// 1 = Dump Registers
+	// 2 = Dump Stack
+	// 3 = Dump Registers + Stack
+	public static void HandleBreakpointInstruction(MachineContext context, uint baseAddress, uint code)
 	{
 		Console.WriteLine();
-		Console.WriteLine($"==== Hit BKPT {code} @ 0x{baseAddress:X8} ====");
+
+		string pcString = GetNamedAddress(context, baseAddress);
+
+		Console.WriteLine($"==== Hit breakpoint {code} at {pcString} ====");
 
 		switch (code)
 		{
@@ -57,22 +62,22 @@ public class Debugger
 			case 1:
 			{
 				Console.WriteLine("==== REGISTER DUMP ====");
-				Console.WriteLine(context.Cpu.Registers.GetFullDisplayString());
+				Console.WriteLine(GetFullRegisterDisplayString(context));
 				Console.WriteLine("========");
 				break;
 			}
 			case 2:
 			{
 				Console.WriteLine("==== STACK DUMP ====");
-				Console.WriteLine(GetStackDump(-32, 128));
+				Console.WriteLine(GetStackDump(context, -32, 128));
 				Console.WriteLine("========");
 				break;
 			}
 			case 3:
 			{
 				Console.WriteLine("==== FULL DUMP ====");
-				Console.WriteLine(context.Cpu.Registers.GetFullDisplayString());
-				Console.WriteLine(GetStackDump(-32, 64));
+				Console.WriteLine(GetFullRegisterDisplayString(context));
+				Console.WriteLine(GetStackDump(context, -32, 64));
 				Console.WriteLine("========");
 				break;
 			}
@@ -91,11 +96,11 @@ public class Debugger
 	/// <param name="plus"></param>
 	/// <param name="minus"></param>
 	/// <returns></returns>
-	private string GetStackDump(int minus, int plus)
+	public static string GetStackDump(MachineContext context, int minus, int plus)
 	{
 		StringBuilder sb = new();
 
-		uint sp = _context.Cpu.Registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
+		uint sp = context.Cpu.Registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
 
 		int i = minus;
 		while (i <= plus)
@@ -129,7 +134,7 @@ public class Debugger
 
 			for (int j = 0; j < 4; j++)
 			{
-				Result<MemoryOperation> readResult = _context.MemoryBus.Read(current, Constants.DataSize.Byte);
+				Result<MemoryOperation> readResult = context.MemoryBus.Read(current, Constants.DataSize.Byte);
 
 				if (readResult.IsSuccess)
 				{
@@ -166,4 +171,78 @@ public class Debugger
 		return sb.ToString();
 	}
 
+	public static string GetStandardRegisterDisplayString(MachineContext context)
+	{
+		StringBuilder sb = new();
+		CPU.Registers registers = context.Cpu.Registers;
+
+		sb.Append($"AF: {registers.Read(Constants.RegisterTarget.AF, Constants.DataSize.Dword):X8} ");
+		sb.Append($"BC: {registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword):X8} ");
+		sb.Append($"DE: {registers.Read(Constants.RegisterTarget.DE, Constants.DataSize.Dword):X8} ");
+		sb.Append($"HL: {registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword):X8} ");
+		sb.Append($"IX: {registers.Read(Constants.RegisterTarget.IX, Constants.DataSize.Dword):X8} ");
+		sb.Append($"IY: {registers.Read(Constants.RegisterTarget.IY, Constants.DataSize.Dword):X8} ");
+		sb.Append($"SP: {registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword):X8} ");
+
+		string pcString = GetNamedAddress(
+			context,
+			registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword)
+		);
+
+		sb.Append($"PC: {pcString}");
+
+		return sb.ToString();
+	}
+
+	public static string GetFullRegisterDisplayString(MachineContext context)
+	{
+		var sb = new StringBuilder();
+
+		CPU.Registers registers = context.Cpu.Registers;
+		sb.AppendLine("Registers:");
+		sb.AppendLine(GetStandardRegisterDisplayString(context));
+		sb.AppendLine("Alternate Registers:");
+		sb.AppendLine(registers.GetAlternateDisplayString());
+		sb.AppendLine("System Registers:");
+		sb.AppendLine(registers.GetSystemDisplayString());
+		sb.AppendLine("Flags:");
+		sb.AppendLine(registers.GetFlagsDisplayString());
+
+		return sb.ToString();
+	}
+
+	/// <summary>
+	/// Gets a formatted string with the name of the previous symbol plus an offset
+	/// </summary>
+	/// <param name="address"></param>
+	/// <returns></returns>
+	public static string GetNamedAddress(MachineContext context, uint address)
+	{
+		Symbol? lastBelow = null;
+
+		// Symbols list is sorted on entry
+		for (int i = 0; i < context.Symbols.Count; i++)
+		{
+			Symbol symbol = context.Symbols[i];
+			if (symbol.Type == Constants.SymbolType.Label)
+			{
+				if ((uint)symbol.Value > address)
+				{
+					if (lastBelow is null)
+					{
+						break;
+					}
+
+					uint offset = address - (uint)lastBelow.Value;
+					return $"{lastBelow.Name}+{offset:X} ({address:X8})";
+				}
+				else
+				{
+					lastBelow = symbol;
+				}
+			}
+		}
+
+		return address.ToString("X8");
+	}
 }
