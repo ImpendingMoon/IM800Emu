@@ -1,6 +1,6 @@
 using System.Diagnostics;
+using System.Text;
 using IM800Emu.Core.Bus;
-using Microsoft.VisualBasic;
 
 namespace IM800Emu.Core.CPU;
 
@@ -19,6 +19,7 @@ public partial class IM800
 	private bool _enableInterrupts = false;
 	private bool _halted = false;
 	private int _interruptMode = 1;
+	private Action<uint, uint> _handleBreakpointInstruction;
 
 	/// <summary>
 	/// The currently-executing block operation. If this is not null, this operation will be re-sent by Decode()
@@ -27,12 +28,94 @@ public partial class IM800
 
 	public Registers Registers => _registers;
 
-	public IM800(MemoryBus memoryBus, MemoryBus ioBus, InterruptBus interruptBus)
+	/// <summary>
+	/// Gets a formatted string with a readout of stack memory from SP-minus to SP+plus
+	/// </summary>
+	/// <param name="plus"></param>
+	/// <param name="minus"></param>
+	/// <returns></returns>
+	public string GetStackReadout(int minus, int plus)
+	{
+		StringBuilder sb = new();
+
+		uint sp = _registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
+
+		int i = minus;
+		while (i <= plus)
+		{
+			uint current = sp + (uint)i;
+
+			sb.Append('[');
+			sb.Append(current.ToString("X8"));
+			sb.Append("] ");
+
+			if (i < 0)
+			{
+				sb.Append("[SP");
+			}
+			else
+			{
+				sb.Append("[SP+");
+			}
+			sb.Append(i);
+
+			if (i >= 100 || i <= -100)
+			{
+				sb.Append("]\t");
+			}
+			else
+			{
+				sb.Append("]\t\t");
+			}
+
+			char[] characters = new char[4];
+
+			for (int j = 0; j < 4; j++)
+			{
+				Result<MemoryOperation> readResult = _memoryBus.Read(current, Constants.DataSize.Byte);
+
+				if (readResult.IsSuccess)
+				{
+					byte value = (byte)readResult.ResultObject.Data;
+					sb.Append(value.ToString("X2"));
+					sb.Append(' ');
+					characters[j] = value >= 0x20 && value <= 0x7F ? (char)value : '.';
+				}
+				else
+				{
+					sb.Append("xx ");
+					characters[j] = '.';
+				}
+
+				current++;
+			}
+
+			sb.Append('\"');
+			for (int j = 0; j < 4; j++)
+			{
+				sb.Append(characters[j]);
+			}
+			sb.Append('\"');
+
+			if (i == 0)
+			{
+				sb.Append(" <<<");
+			}
+
+			sb.AppendLine();
+			i += 4;
+		}
+
+		return sb.ToString();
+	}
+
+	public IM800(MemoryBus memoryBus, MemoryBus ioBus, InterruptBus interruptBus, Action<uint, uint> handleBreakpointInstruction)
 	{
 		_registers = new();
 		_memoryBus = memoryBus;
 		_ioBus = ioBus;
 		_interruptBus = interruptBus;
+		_handleBreakpointInstruction = handleBreakpointInstruction;
 	}
 
 	public Result Reset()
@@ -284,6 +367,7 @@ public partial class IM800
 			Constants.Operation.BTST => ExecuteBTST(operation),
 			Constants.Operation.BIN => ExecuteBIN(operation),
 			Constants.Operation.BOUT => ExecuteBOUT(operation),
+			Constants.Operation.BKPT => ExecuteBKPT(operation),
 			_ => throw new NotImplementedException($"Execute{operation.Operation} does not exist"),
 		};
 

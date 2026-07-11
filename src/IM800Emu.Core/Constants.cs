@@ -98,6 +98,7 @@ public static class Constants
 		BTST,
 		BIN,
 		BOUT,
+		BKPT,
 	}
 
 	public enum DataSize

@@ -3548,6 +3548,18 @@ public partial class IM800
 		return result;
 	}
 
+	private Result<int> ExecuteBKPT(DecodedOperation operation)
+	{
+		Debug.Assert(operation.Destination is not null && operation.Source is null);
+
+		Result<int> result = new(operation.FetchCycles + 1);
+
+		uint code = operation.Destination.Data;
+		_handleBreakpointInstruction(operation.BaseAddress, code);
+
+		return result;
+	}
+
 	private Result<MemoryOperation> InternalPush(uint value)
 	{
 		uint sp = _registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);

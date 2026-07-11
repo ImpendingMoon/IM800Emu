@@ -66,7 +66,7 @@ internal class Program
 			}
 			else
 			{
-				Console.WriteLine("Emulator overloaded!");
+				// Console.WriteLine("Emulator overloaded!");
 			}
 		}
 	}

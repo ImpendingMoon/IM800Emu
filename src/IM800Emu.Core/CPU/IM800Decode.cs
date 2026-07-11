@@ -217,10 +217,7 @@ public partial class IM800
 			&& addressRegisterSelector == (int)Constants.RegisterSelector.Immediate
 		)
 		{
-			decodeResult.AddError(
-				_decodeErrorName,
-				$"cannot use an immediate value for both register and address register"
-			);
+			decodeResult.AddError(_decodeErrorName, $"cannot use an immediate value and a direct address");
 			return;
 		}
 
@@ -228,34 +225,7 @@ public partial class IM800
 		Constants.DataSize registerDataSize = store ? sourceSize : destinationSize;
 		Constants.DataSize memoryDataSize = store ? destinationSize : sourceSize;
 
-		Operand registerOperand = new()
-		{
-			DataSize = registerDataSize,
-		};
-
-		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
-		{
-			if (store)
-			{
-				decodeResult.AddError(_decodeErrorName, $"cannot use an immediate value as a destination");
-				return;
-			}
-
-			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, registerDataSize);
-			decodeResult.Combine(immediateResult);
-
-			if (!immediateResult.IsSuccess)
-			{
-				return;
-			}
-
-			registerOperand.Data = immediateResult.ResultObject.Data;
-		}
-		else
-		{
-			registerOperand.Register = DecodeRegister(registerSelector, registerDataSize);
-		}
-
+		// Need to evaluate memoryOperand first, since displacements come before immediates
 		Operand memoryOperand = new()
 		{
 			DataSize = memoryDataSize,
@@ -295,6 +265,34 @@ public partial class IM800
 
 				memoryOperand.Displacement = (short)displacementResult.ResultObject.Data;
 			}
+		}
+
+		Operand registerOperand = new()
+		{
+			DataSize = registerDataSize,
+		};
+
+		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
+		{
+			if (!store)
+			{
+				decodeResult.AddError(_decodeErrorName, $"cannot use an immediate value as a destination");
+				return;
+			}
+
+			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, registerDataSize);
+			decodeResult.Combine(immediateResult);
+
+			if (!immediateResult.IsSuccess)
+			{
+				return;
+			}
+
+			registerOperand.Data = immediateResult.ResultObject.Data;
+		}
+		else
+		{
+			registerOperand.Register = DecodeRegister(registerSelector, registerDataSize);
 		}
 
 		Operand destinationOperand = store ? memoryOperand : registerOperand;
@@ -628,6 +626,7 @@ public partial class IM800
 			0b0001_00001001 => Constants.Operation.HALT,
 			0b0001_00001010 => Constants.Operation.LDAR,
 			0b0001_00001011 => Constants.Operation.LDRA,
+			0b1111_00000000 => Constants.Operation.BKPT,
 			_ => Constants.Operation.Invalid,
 		};
 
@@ -657,7 +656,10 @@ public partial class IM800
 				Data = immediateResult.ResultObject.Data,
 			};
 		}
-		else if (decodeResult.ResultObject.Operation == Constants.Operation.RST)
+		else if (
+			decodeResult.ResultObject.Operation == Constants.Operation.RST
+			|| decodeResult.ResultObject.Operation == Constants.Operation.BKPT
+		)
 		{
 			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, Constants.DataSize.Byte);
 
