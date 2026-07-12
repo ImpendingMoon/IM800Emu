@@ -15,7 +15,10 @@ public static class Debugger
 
 	public static void HandlePauseState(MachineContext context)
 	{
-		Console.WriteLine("Emulator Paused. Press Enter to Continue, Esc to Quit, S to step.");
+		Console.WriteLine("Emulator Paused.");
+		string pcString = GetNamedAddress(context, context.CurrentOperation.BaseAddress);
+		Console.WriteLine($"Currently Executing {context.CurrentOperation} at {pcString}");
+		Console.WriteLine("Press Enter to Continue, Esc to Quit, S to step, D to dump.");
 
 		while (true)
 		{
@@ -37,13 +40,21 @@ public static class Debugger
 				context.LogExecution = true;
 				break;
 			}
+			else if (key.Key == ConsoleKey.D)
+			{
+				Console.WriteLine();
+				Console.WriteLine("==== REGISTER + STACK DUMP ====");
+				Console.WriteLine(GetFullRegisterDisplayString(context));
+				Console.WriteLine(GetStackDump(context, -32, 64));
+				Console.WriteLine("========");
+			}
 		}
 	}
 
 	// 0 = Pause
-	// 1 = Dump Registers
-	// 2 = Dump Stack
-	// 3 = Dump Registers + Stack
+	// 1 = Dump Registers + Stack
+	// 2 = Log Execution On
+	// 3 = Log Execution Off
 	public static void HandleBreakpointInstruction(MachineContext context, uint baseAddress, uint code)
 	{
 		Console.WriteLine();
@@ -61,24 +72,20 @@ public static class Debugger
 			}
 			case 1:
 			{
-				Console.WriteLine("==== REGISTER DUMP ====");
+				Console.WriteLine("==== REGISTER + STACK DUMP ====");
 				Console.WriteLine(GetFullRegisterDisplayString(context));
+				Console.WriteLine(GetStackDump(context, -32, 64));
 				Console.WriteLine("========");
 				break;
 			}
 			case 2:
 			{
-				Console.WriteLine("==== STACK DUMP ====");
-				Console.WriteLine(GetStackDump(context, -32, 128));
-				Console.WriteLine("========");
+				context.LogExecution = true;
 				break;
 			}
 			case 3:
 			{
-				Console.WriteLine("==== FULL DUMP ====");
-				Console.WriteLine(GetFullRegisterDisplayString(context));
-				Console.WriteLine(GetStackDump(context, -32, 64));
-				Console.WriteLine("========");
+				context.LogExecution = true;
 				break;
 			}
 			default:

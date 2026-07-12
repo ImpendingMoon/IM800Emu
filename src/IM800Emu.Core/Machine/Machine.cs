@@ -59,6 +59,8 @@ public class Machine
 		{
 			Result<DecodedOperation> decodeResult = _context.Cpu.Decode();
 			result.Combine(decodeResult);
+
+			_context.CurrentOperation = decodeResult.ResultObject;
 			int cyclesUsed = decodeResult.ResultObject.FetchCycles;
 
 			if (decodeResult.IsSuccess)

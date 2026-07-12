@@ -368,6 +368,7 @@ public partial class IM800
 		{
 			Result<MemoryOperation> immediateResult = FetchImmediate(decodeResult, size);
 			decodeResult.Combine(immediateResult);
+			decodeResult.ResultObject.Destination.Data = immediateResult.ResultObject.Data;
 
 			if (!immediateResult.IsSuccess)
 			{

@@ -2766,7 +2766,7 @@ public partial class IM800
 			}
 			else
 			{
-				result.AddError("ExecuteJR", $"invalid size for instruction JR: {operation.DataSize}");
+				result.AddError("ExecuteJR", $"invalid size for instruction CR: {operation.DataSize}");
 			}
 
 			pc = (uint)((int)pc + displacement);

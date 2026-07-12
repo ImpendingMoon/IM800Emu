@@ -19,6 +19,7 @@ public class MachineContext
 		InterruptBus = new();
 		Cpu = new(MemoryBus, IoBus, InterruptBus, HandleBreakpointInstruction);
 		Symbols = [];
+		CurrentOperation = new();
 	}
 
 	public void AddSymbols(List<Symbol> symbols)
@@ -93,6 +94,8 @@ public class MachineContext
 	public InterruptBus InterruptBus { get; }
 
 	public List<Symbol> Symbols { get; }
+
+	public DecodedOperation CurrentOperation { get; set; }
 
 	public readonly int CyclesPerFrame = Constants.CpuSpeedHz / Constants.TargetFramerate;
 	public int CurrentFrameCyclesRemaining = 0;
