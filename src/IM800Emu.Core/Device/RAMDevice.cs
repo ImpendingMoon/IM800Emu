@@ -17,6 +17,7 @@ internal class RAMDevice : IMemoryDevice
 	{
 		_data = new byte[size];
 		_readOnly = false;
+		Array.Fill<byte>(_data, 0xFF);
 	}
 
 	public uint Length => (uint)_data.Length;

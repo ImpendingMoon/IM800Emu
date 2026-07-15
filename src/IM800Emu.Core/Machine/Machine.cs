@@ -78,6 +78,8 @@ public class Machine
 
 			if (!result.IsSuccess)
 			{
+				Console.WriteLine();
+
 				foreach (var error in result.Errors)
 				{
 					Console.WriteLine(error);

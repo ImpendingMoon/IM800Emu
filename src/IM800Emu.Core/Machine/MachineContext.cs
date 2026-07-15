@@ -100,6 +100,7 @@ public class MachineContext
 	public readonly int CyclesPerFrame = Constants.CpuSpeedHz / Constants.TargetFramerate;
 	public int CurrentFrameCyclesRemaining = 0;
 	public bool Paused = false;
+	public bool InDebugger = false;
 	public bool SingleStep = false;
 	public bool LogExecution = false;
 }
