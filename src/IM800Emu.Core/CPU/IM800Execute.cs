@@ -213,7 +213,7 @@ public partial class IM800
 			Constants.DataSize.Word => 1,
 			Constants.DataSize.Dword => 2,
 			Constants.DataSize.Qword => 3,
-			_ => throw new InvalidOperationException($"impossible data size for instruction ESA: {operation.DataSize}"),
+			_ => throw new InvalidOperationException($"impossible data size for instruction ESA: {operation.DataSize}")
 		};
 
 		uint source = readSourceResult.ResultObject.Data;
@@ -237,7 +237,7 @@ public partial class IM800
 
 		if (operation.Destination.Register != default)
 		{
-			_registers.ExchangeWithAlternate(operation.Destination.Register, operation.Destination.DataSize);
+			Registers.ExchangeWithAlternate(operation.Destination.Register, operation.Destination.DataSize);
 		}
 		else
 		{
@@ -253,9 +253,9 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		_registers.ExchangeWithAlternate(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
-		_registers.ExchangeWithAlternate(Constants.RegisterTarget.DE, Constants.DataSize.Dword);
-		_registers.ExchangeWithAlternate(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
+		Registers.ExchangeWithAlternate(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
+		Registers.ExchangeWithAlternate(Constants.RegisterTarget.DE, Constants.DataSize.Dword);
+		Registers.ExchangeWithAlternate(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 
 		return result;
 	}
@@ -266,9 +266,9 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		_registers.ExchangeWithAlternate(Constants.RegisterTarget.IX, Constants.DataSize.Dword);
-		_registers.ExchangeWithAlternate(Constants.RegisterTarget.IY, Constants.DataSize.Dword);
-		_registers.ExchangeWithAlternate(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
+		Registers.ExchangeWithAlternate(Constants.RegisterTarget.IX, Constants.DataSize.Dword);
+		Registers.ExchangeWithAlternate(Constants.RegisterTarget.IY, Constants.DataSize.Dword);
+		Registers.ExchangeWithAlternate(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
 
 		return result;
 	}
@@ -382,13 +382,14 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteADD", $"invalid size for instruction ADD: {operation.DataSize}");
+				result.AddError("ExecuteADD", $"invalid size for instruction ADD: {operation.DataSize}");
 				break;
 			}
 		}
 
 		flagState.Subtract = false;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -477,13 +478,14 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteADC", $"invalid size for instruction ADC: {operation.DataSize}");
+				result.AddError("ExecuteADC", $"invalid size for instruction ADC: {operation.DataSize}");
 				break;
 			}
 		}
 
 		flagState.Subtract = false;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -559,13 +561,14 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteSUB", $"invalid size for instruction SUB: {operation.DataSize}");
+				result.AddError("ExecuteSUB", $"invalid size for instruction SUB: {operation.DataSize}");
 				break;
 			}
 		}
 
 		flagState.Subtract = true;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -653,13 +656,14 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteSBC", $"invalid size for instruction SBC: {operation.DataSize}");
+				result.AddError("ExecuteSBC", $"invalid size for instruction SBC: {operation.DataSize}");
 				break;
 			}
 		}
 
 		flagState.Subtract = true;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -735,13 +739,14 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteCP", $"invalid size for instruction CP: {operation.DataSize}");
+				result.AddError("ExecuteCP", $"invalid size for instruction CP: {operation.DataSize}");
 				break;
 			}
 		}
 
 		flagState.Subtract = true;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		return result;
@@ -807,13 +812,14 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteINC", $"invalid size for instruction INC: {operation.DataSize}");
+				result.AddError("ExecuteINC", $"invalid size for instruction INC: {operation.DataSize}");
 				break;
 			}
 		}
 
 		flagState.Subtract = false;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -883,13 +889,14 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteDEC", $"invalid size for instruction DEC: {operation.DataSize}");
+				result.AddError("ExecuteDEC", $"invalid size for instruction DEC: {operation.DataSize}");
 				break;
 			}
 		}
 
 		flagState.Subtract = true;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -961,13 +968,14 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteNEG", $"invalid size for instruction NEG: {operation.DataSize}");
+				result.AddError("ExecuteNEG", $"invalid size for instruction NEG: {operation.DataSize}");
 				break;
 			}
 		}
 
 		flagState.Subtract = true;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -1011,7 +1019,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteEXT", $"invalid size for instruction EXT: {operation.DataSize}");
+				result.AddError("ExecuteEXT", $"invalid size for instruction EXT: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1071,13 +1079,14 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteMLT", $"invalid size for instruction MLT: {operation.DataSize}");
+				result.AddError("ExecuteMLT", $"invalid size for instruction MLT: {operation.DataSize}");
 				break;
 			}
 		}
 
 		flagState.Subtract = false;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -1128,6 +1137,7 @@ public partial class IM800
 					data = (byte)(dividend / divisor); // Quotient in lower half
 					data |= (uint)(byte)(dividend % divisor) << 8; // Remainder in upper half
 				}
+
 				break;
 			}
 			case Constants.DataSize.Dword:
@@ -1152,15 +1162,17 @@ public partial class IM800
 					data = (ushort)(dividend / divisor); // Quotient in lower half
 					data |= (uint)(ushort)(dividend % divisor) << 16; // Remainder in upper half
 				}
+
 				break;
 			}
 			default:
 			{
-				result.AddError($"ExecuteDIV", $"invalid size for instruction DIV: {operation.DataSize}");
+				result.AddError("ExecuteDIV", $"invalid size for instruction DIV: {operation.DataSize}");
 				break;
 			}
 		}
 
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -1211,6 +1223,7 @@ public partial class IM800
 					data = (byte)(dividend / divisor); // Quotient in lower half
 					data |= (uint)(byte)(dividend % divisor) << 8; // Remainder in upper half
 				}
+
 				break;
 			}
 			case Constants.DataSize.Dword:
@@ -1235,15 +1248,17 @@ public partial class IM800
 					data = (ushort)(dividend / divisor); // Quotient in lower half
 					data |= (uint)(ushort)(dividend % divisor) << 16; // Remainder in upper half
 				}
+
 				break;
 			}
 			default:
 			{
-				result.AddError($"ExecuteSDIV", $"invalid size for instruction SDIV: {operation.DataSize}");
+				result.AddError("ExecuteSDIV", $"invalid size for instruction SDIV: {operation.DataSize}");
 				break;
 			}
 		}
 
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -1259,7 +1274,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		uint a = _registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Byte);
+		uint a = Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Byte);
 
 		ALUFlagState flagState = GetALUFlags();
 
@@ -1314,7 +1329,7 @@ public partial class IM800
 		flagState.Sign = (a & 0x80) != 0;
 		flagState.Zero = a == 0;
 		flagState.ParityOverflow = BitHelper.IsParityEven(a);
-
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 		Registers.Write(Constants.RegisterTarget.A, Constants.DataSize.Byte, a);
 
@@ -1379,7 +1394,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteAND", $"invalid size for instruction AND: {operation.DataSize}");
+				result.AddError("ExecuteAND", $"invalid size for instruction AND: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1389,6 +1404,7 @@ public partial class IM800
 		flagState.HalfCarry = true;
 		flagState.Subtract = false;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -1459,7 +1475,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteOR", $"invalid size for instruction OR: {operation.DataSize}");
+				result.AddError("ExecuteOR", $"invalid size for instruction OR: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1469,6 +1485,7 @@ public partial class IM800
 		flagState.HalfCarry = false;
 		flagState.Subtract = false;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -1539,7 +1556,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteXOR", $"invalid size for instruction XOR: {operation.DataSize}");
+				result.AddError("ExecuteXOR", $"invalid size for instruction XOR: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1549,6 +1566,7 @@ public partial class IM800
 		flagState.HalfCarry = true;
 		flagState.Subtract = false;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -1616,7 +1634,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteTST", $"invalid size for instruction TST: {operation.DataSize}");
+				result.AddError("ExecuteTST", $"invalid size for instruction TST: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1626,6 +1644,7 @@ public partial class IM800
 		flagState.HalfCarry = true;
 		flagState.Subtract = false;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		return result;
@@ -1688,7 +1707,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteCPL", $"invalid size for instruction CPL: {operation.DataSize}");
+				result.AddError("ExecuteCPL", $"invalid size for instruction CPL: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1698,6 +1717,7 @@ public partial class IM800
 		flagState.HalfCarry = true;
 		flagState.Subtract = false;
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -1743,7 +1763,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteBIT", $"invalid size for instruction BIT: {operation.DataSize}");
+				result.AddError("ExecuteBIT", $"invalid size for instruction BIT: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1751,6 +1771,7 @@ public partial class IM800
 		flagState.HalfCarry = false;
 		flagState.Subtract = false;
 		flagState.Zero = ((readDestResult.ResultObject.Data >> bit) & 1) == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		return result;
@@ -1792,7 +1813,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteSET", $"invalid size for instruction SET: {operation.DataSize}");
+				result.AddError("ExecuteSET", $"invalid size for instruction SET: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1842,7 +1863,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteRES", $"invalid size for instruction RES: {operation.DataSize}");
+				result.AddError("ExecuteRES", $"invalid size for instruction RES: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1932,7 +1953,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteRLC", $"invalid size for instruction RLC: {operation.DataSize}");
+				result.AddError("ExecuteRLC", $"invalid size for instruction RLC: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1940,6 +1961,7 @@ public partial class IM800
 		flagState.Subtract = false;
 		flagState.ParityOverflow = BitHelper.IsParityEven(data);
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -2026,7 +2048,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteRRC", $"invalid size for instruction RRC: {operation.DataSize}");
+				result.AddError("ExecuteRRC", $"invalid size for instruction RRC: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2034,6 +2056,7 @@ public partial class IM800
 		flagState.Subtract = false;
 		flagState.ParityOverflow = BitHelper.IsParityEven(data);
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -2098,7 +2121,7 @@ public partial class IM800
 				}
 
 				data = a;
-				flagState.Sign = (data) != 0;
+				flagState.Sign = data != 0;
 
 				break;
 			}
@@ -2123,7 +2146,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteRL", $"invalid size for instruction RL: {operation.DataSize}");
+				result.AddError("ExecuteRL", $"invalid size for instruction RL: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2131,6 +2154,7 @@ public partial class IM800
 		flagState.Subtract = false;
 		flagState.ParityOverflow = BitHelper.IsParityEven(data);
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -2217,7 +2241,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteRR", $"invalid size for instruction RR: {operation.DataSize}");
+				result.AddError("ExecuteRR", $"invalid size for instruction RR: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2225,6 +2249,7 @@ public partial class IM800
 		flagState.Subtract = false;
 		flagState.ParityOverflow = BitHelper.IsParityEven(data);
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -2311,7 +2336,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteSLA", $"invalid size for instruction SLA: {operation.DataSize}");
+				result.AddError("ExecuteSLA", $"invalid size for instruction SLA: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2319,6 +2344,7 @@ public partial class IM800
 		flagState.Subtract = false;
 		flagState.ParityOverflow = BitHelper.IsParityEven(data);
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -2405,7 +2431,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteSRA", $"invalid size for instruction SRA: {operation.DataSize}");
+				result.AddError("ExecuteSRA", $"invalid size for instruction SRA: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2413,6 +2439,7 @@ public partial class IM800
 		flagState.Subtract = false;
 		flagState.ParityOverflow = BitHelper.IsParityEven(data);
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -2499,7 +2526,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"ExecuteSRL", $"invalid size for instruction SRL: {operation.DataSize}");
+				result.AddError("ExecuteSRL", $"invalid size for instruction SRL: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2507,6 +2534,7 @@ public partial class IM800
 		flagState.Subtract = false;
 		flagState.ParityOverflow = BitHelper.IsParityEven(data);
 		flagState.Zero = data == 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Result<MemoryOperation> writeDestResult = WriteOperand(operation.Destination, data);
@@ -2546,6 +2574,7 @@ public partial class IM800
 		flagState.ParityOverflow = BitHelper.IsParityEven(newA);
 		flagState.HalfCarry = false;
 		flagState.Subtract = false;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Registers.Write(Constants.RegisterTarget.A, Constants.DataSize.Byte, newA);
@@ -2584,6 +2613,7 @@ public partial class IM800
 		flagState.ParityOverflow = BitHelper.IsParityEven(newA);
 		flagState.HalfCarry = false;
 		flagState.Subtract = false;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		Registers.Write(Constants.RegisterTarget.A, Constants.DataSize.Byte, newA);
@@ -2658,16 +2688,16 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		ushort b = (ushort)_registers.Read(Constants.RegisterTarget.B, Constants.DataSize.Word);
+		ushort b = (ushort)Registers.Read(Constants.RegisterTarget.B, Constants.DataSize.Word);
 		b--;
-		_registers.Write(Constants.RegisterTarget.B, Constants.DataSize.Word, b);
+		Registers.Write(Constants.RegisterTarget.B, Constants.DataSize.Word, b);
 
 		if (b != 0)
 		{
-			int pc = (int)_registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			int pc = (int)Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 			int displacement = (int)BitHelper.SignExtend(operation.Destination.Data, 8);
 			pc += displacement;
-			_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
 			result.ResultObject += 2;
 		}
 
@@ -2680,14 +2710,14 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		ushort a = (ushort)_registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Word);
+		ushort a = (ushort)Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Word);
 
 		if (a == 0)
 		{
-			int pc = (int)_registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			int pc = (int)Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 			int displacement = (int)BitHelper.SignExtend(operation.Destination.Data, 8);
 			pc += displacement;
-			_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
 			result.ResultObject += 2;
 		}
 
@@ -2700,14 +2730,14 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		ushort a = (ushort)_registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Word);
+		ushort a = (ushort)Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Word);
 
 		if (a != 0)
 		{
-			int pc = (int)_registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			int pc = (int)Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 			int displacement = (int)BitHelper.SignExtend(operation.Destination.Data, 8);
 			pc += displacement;
-			_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
 			result.ResultObject += 2;
 		}
 
@@ -2722,7 +2752,7 @@ public partial class IM800
 
 		if (IsConditionTrue(operation.Condition))
 		{
-			uint pc = _registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 			Result<MemoryOperation> pushResult = InternalPush(pc);
 			result.Combine(pushResult);
 			result.ResultObject += pushResult.ResultObject.Cycles;
@@ -2745,7 +2775,7 @@ public partial class IM800
 
 		if (IsConditionTrue(operation.Condition))
 		{
-			uint pc = _registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 			Result<MemoryOperation> pushResult = InternalPush(pc);
 			result.Combine(pushResult);
 			result.ResultObject += pushResult.ResultObject.Cycles;
@@ -2770,7 +2800,7 @@ public partial class IM800
 			}
 
 			pc = (uint)((int)pc + displacement);
-			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
 		}
 
 		return result;
@@ -2787,7 +2817,7 @@ public partial class IM800
 			Result<MemoryOperation> popResult = InternalPop();
 			result.Combine(popResult);
 			result.ResultObject += popResult.ResultObject.Cycles;
-			_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.ResultObject.Data);
+			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.ResultObject.Data);
 		}
 
 		return result;
@@ -2802,7 +2832,7 @@ public partial class IM800
 		Result<MemoryOperation> popResult = InternalPop();
 		result.Combine(popResult);
 		result.ResultObject += popResult.ResultObject.Cycles;
-		_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.ResultObject.Data);
+		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.ResultObject.Data);
 
 		return result;
 	}
@@ -2811,13 +2841,13 @@ public partial class IM800
 	{
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		bool enableInterrupts = _registers.GetFlag(Constants.FlagMask.EnableInterruptsSave);
-		_registers.SetFlag(Constants.FlagMask.EnableInterrupts, enableInterrupts);
+		bool enableInterrupts = Registers.GetFlag(Constants.FlagMask.EnableInterruptsSave);
+		Registers.SetFlag(Constants.FlagMask.EnableInterrupts, enableInterrupts);
 
 		Result<MemoryOperation> popResult = InternalPop();
 		result.Combine(popResult);
 		result.ResultObject += popResult.ResultObject.Cycles;
-		_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.ResultObject.Data);
+		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.ResultObject.Data);
 
 		return result;
 	}
@@ -2841,7 +2871,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		_registers.SetFlag(Constants.FlagMask.Carry, true);
+		Registers.SetFlag(Constants.FlagMask.Carry, true);
 
 		return result;
 	}
@@ -2852,8 +2882,8 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		bool carry = _registers.GetFlag(Constants.FlagMask.Carry);
-		_registers.SetFlag(Constants.FlagMask.Carry, !carry);
+		bool carry = Registers.GetFlag(Constants.FlagMask.Carry);
+		Registers.SetFlag(Constants.FlagMask.Carry, !carry);
 
 		return result;
 	}
@@ -2875,7 +2905,7 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		_registers.SetFlag(Constants.FlagMask.EnableInterrupts, false);
+		Registers.SetFlag(Constants.FlagMask.EnableInterrupts, false);
 
 		return result;
 	}
@@ -2922,7 +2952,7 @@ public partial class IM800
 
 		// I is only 22 bits long (shifted left 10 to form upper bits of IVT address)
 		uint newI = operation.Destination.Data & 0b1111111111111111111111;
-		_registers.Write(Constants.RegisterTarget.I, Constants.DataSize.Dword, newI);
+		Registers.Write(Constants.RegisterTarget.I, Constants.DataSize.Dword, newI);
 
 		return result;
 	}
@@ -2933,8 +2963,8 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		uint r = _registers.Read(Constants.RegisterTarget.R, Constants.DataSize.Word);
-		_registers.Write(Constants.RegisterTarget.A, Constants.DataSize.Word, r);
+		uint r = Registers.Read(Constants.RegisterTarget.R, Constants.DataSize.Word);
+		Registers.Write(Constants.RegisterTarget.A, Constants.DataSize.Word, r);
 
 		return result;
 	}
@@ -2945,8 +2975,8 @@ public partial class IM800
 
 		Result<int> result = new(operation.FetchCycles + 1);
 
-		uint a = _registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Word);
-		_registers.Write(Constants.RegisterTarget.R, Constants.DataSize.Word, a);
+		uint a = Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Word);
+		Registers.Write(Constants.RegisterTarget.R, Constants.DataSize.Word, a);
 
 		return result;
 	}
@@ -3018,6 +3048,7 @@ public partial class IM800
 		flagState.HalfCarry = false;
 		flagState.Subtract = false;
 		flagState.ParityOverflow = bc != 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		// Writeback registers
@@ -3122,7 +3153,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"InternalCompare", $"invalid size for compare: {operation.DataSize}");
+				result.AddError("InternalCompare", $"invalid size for compare: {operation.DataSize}");
 				break;
 			}
 		}
@@ -3172,6 +3203,7 @@ public partial class IM800
 		flagState.HalfCarry = false;
 		flagState.Subtract = false;
 		flagState.ParityOverflow = bc != 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		// Writeback registers
@@ -3271,7 +3303,7 @@ public partial class IM800
 			}
 			default:
 			{
-				result.AddError($"BTST", $"invalid size for BTST: {operation.DataSize}");
+				result.AddError("BTST", $"invalid size for BTST: {operation.DataSize}");
 				break;
 			}
 		}
@@ -3323,6 +3355,7 @@ public partial class IM800
 		flagState.HalfCarry = false;
 		flagState.Subtract = false;
 		flagState.ParityOverflow = bc != 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		// Writeback registers
@@ -3419,6 +3452,7 @@ public partial class IM800
 		flagState.HalfCarry = false;
 		flagState.Subtract = false;
 		flagState.ParityOverflow = bc != 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		// Writeback registers
@@ -3516,6 +3550,7 @@ public partial class IM800
 		flagState.HalfCarry = false;
 		flagState.Subtract = false;
 		flagState.ParityOverflow = bc != 0;
+		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
 		// Writeback registers
@@ -3562,9 +3597,9 @@ public partial class IM800
 
 	private Result<MemoryOperation> InternalPush(uint value)
 	{
-		uint sp = _registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
+		uint sp = Registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
 		sp -= 4;
-		_registers.Write(Constants.RegisterTarget.SP, Constants.DataSize.Dword, sp);
+		Registers.Write(Constants.RegisterTarget.SP, Constants.DataSize.Dword, sp);
 		Result<MemoryOperation> writeMemoryResult = _memoryBus.Write(sp, Constants.DataSize.Dword, value);
 
 		return writeMemoryResult;
@@ -3572,10 +3607,10 @@ public partial class IM800
 
 	private Result<MemoryOperation> InternalPop()
 	{
-		uint sp = _registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
+		uint sp = Registers.Read(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
 		Result<MemoryOperation> readMemoryResult = _memoryBus.Read(sp, Constants.DataSize.Dword);
 		sp += 4;
-		_registers.Write(Constants.RegisterTarget.SP, Constants.DataSize.Dword, sp);
+		Registers.Write(Constants.RegisterTarget.SP, Constants.DataSize.Dword, sp);
 
 		return readMemoryResult;
 	}

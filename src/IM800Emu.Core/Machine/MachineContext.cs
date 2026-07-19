@@ -1,26 +1,41 @@
-namespace IM800Emu.Core.Machine;
-
 using IM800Emu.Core.Bus;
 using IM800Emu.Core.CPU;
 using IM800Emu.Core.IM800Debug;
 
+namespace IM800Emu.Core.Machine;
+
 // Used to share context between emulator and debugger
 public class MachineContext
 {
+	public readonly int CyclesPerFrame = Constants.CpuSpeedHz / Constants.TargetFramerate;
+	private Func<MachineContext, string>? _getFullRegisterDisplayString;
+	private Func<MachineContext, string>? _getStandardRegisterDisplayString;
 	private Action<MachineContext, uint, uint>? _handleBreakpointInstruction;
 	private Action<MachineContext>? _handlePauseState;
-	private Func<MachineContext, string>? _getStandardRegisterDisplayString;
-	private Func<MachineContext, string>? _getFullRegisterDisplayString;
+	public int CurrentFrameCyclesRemaining = 0;
+	public bool InDebugger = false;
+	public bool LogExecution = false;
+	public bool Paused = false;
+	public bool SingleStep = false;
 
 	public MachineContext()
 	{
-		MemoryBus = new();
-		IoBus = new();
-		InterruptBus = new();
-		Cpu = new(MemoryBus, IoBus, InterruptBus, HandleBreakpointInstruction);
+		MemoryBus = new MemoryBus();
+		IoBus = new MemoryBus();
+		InterruptBus = new InterruptBus();
+		Cpu = new IM800(MemoryBus, IoBus, InterruptBus, HandleBreakpointInstruction);
 		Symbols = [];
-		CurrentOperation = new();
+		CurrentOperation = new DecodedOperation();
 	}
+
+	public IM800 Cpu { get; }
+	public MemoryBus MemoryBus { get; }
+	public MemoryBus IoBus { get; }
+	public InterruptBus InterruptBus { get; }
+
+	public List<Symbol> Symbols { get; }
+
+	public DecodedOperation CurrentOperation { get; set; }
 
 	public void AddSymbols(List<Symbol> symbols)
 	{
@@ -39,7 +54,8 @@ public class MachineContext
 	}
 
 	// Used by a debugger to attach symbol names
-	public void SetRegisterDisplayStringHandlers(
+	public void SetRegisterDisplayStringHandlers
+	(
 		Func<MachineContext, string> standardHandler,
 		Func<MachineContext, string> fullHandler
 	)
@@ -70,10 +86,8 @@ public class MachineContext
 		{
 			return _getStandardRegisterDisplayString(this);
 		}
-		else
-		{
-			return Cpu.Registers.GetStandardDisplayString();
-		}
+
+		return Cpu.Registers.GetStandardDisplayString();
 	}
 
 	public string GetFullRegisterDisplayString()
@@ -82,25 +96,7 @@ public class MachineContext
 		{
 			return _getFullRegisterDisplayString(this);
 		}
-		else
-		{
-			return Cpu.Registers.GetFullDisplayString();
-		}
+
+		return Cpu.Registers.GetFullDisplayString();
 	}
-
-	public IM800 Cpu { get; }
-	public MemoryBus MemoryBus { get; }
-	public MemoryBus IoBus { get; }
-	public InterruptBus InterruptBus { get; }
-
-	public List<Symbol> Symbols { get; }
-
-	public DecodedOperation CurrentOperation { get; set; }
-
-	public readonly int CyclesPerFrame = Constants.CpuSpeedHz / Constants.TargetFramerate;
-	public int CurrentFrameCyclesRemaining = 0;
-	public bool Paused = false;
-	public bool InDebugger = false;
-	public bool SingleStep = false;
-	public bool LogExecution = false;
 }

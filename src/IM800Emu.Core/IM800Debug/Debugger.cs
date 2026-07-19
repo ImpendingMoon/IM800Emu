@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Text;
 using IM800Emu.Core.Bus;
+using IM800Emu.Core.CPU;
 using IM800Emu.Core.Machine;
 
 namespace IM800Emu.Core.IM800Debug;
@@ -7,33 +9,27 @@ namespace IM800Emu.Core.IM800Debug;
 public static class Debugger
 {
 	// Command name to handler. Handler returns true to break from the debugger
-	private static readonly Dictionary<string, Func<MachineContext, string[], bool>> Commands = new(StringComparer.OrdinalIgnoreCase)
-	{
-		["continue"] = HandleContinue,
-		["c"] = HandleContinue,
-
-		["quit"] = HandleQuit,
-		["q"] = HandleQuit,
-		["exit"] = HandleQuit,
-
-		["step"] = HandleStep,
-		["s"] = HandleStep,
-
-		["log"] = HandleLog,
-
-		["regs"] = HandleDumpRegisters,
-		["registers"] = HandleDumpRegisters,
-		["r"] = HandleDumpRegisters,
-
-		["stack"] = HandleDumpStack,
-		["st"] = HandleDumpStack,
-
-		["mem"] = HandleDumpMemory,
-		["m"] = HandleDumpMemory,
-
-		["help"] = HandleHelp,
-		["?"] = HandleHelp,
-	};
+	private static readonly Dictionary<string, Func<MachineContext, string[], bool>> Commands =
+		new(StringComparer.OrdinalIgnoreCase)
+		{
+			["continue"] = HandleContinue,
+			["c"] = HandleContinue,
+			["quit"] = HandleQuit,
+			["q"] = HandleQuit,
+			["exit"] = HandleQuit,
+			["step"] = HandleStep,
+			["s"] = HandleStep,
+			["log"] = HandleLog,
+			["regs"] = HandleDumpRegisters,
+			["registers"] = HandleDumpRegisters,
+			["r"] = HandleDumpRegisters,
+			["stack"] = HandleDumpStack,
+			["st"] = HandleDumpStack,
+			["mem"] = HandleDumpMemory,
+			["m"] = HandleDumpMemory,
+			["help"] = HandleHelp,
+			["?"] = HandleHelp
+		};
 
 	public static void AttachDebugger(MachineContext context)
 	{
@@ -231,7 +227,7 @@ public static class Debugger
 	{
 		if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
 		{
-			return int.TryParse(value.AsSpan(2), System.Globalization.NumberStyles.HexNumber, null, out result);
+			return int.TryParse(value.AsSpan(2), NumberStyles.HexNumber, null, out result);
 		}
 
 		return int.TryParse(value, out result);
@@ -241,10 +237,10 @@ public static class Debugger
 	{
 		if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
 		{
-			return uint.TryParse(value.AsSpan(2), System.Globalization.NumberStyles.HexNumber, null, out result);
+			return uint.TryParse(value.AsSpan(2), NumberStyles.HexNumber, null, out result);
 		}
 
-		return uint.TryParse(value, System.Globalization.NumberStyles.HexNumber, null, out result);
+		return uint.TryParse(value, NumberStyles.HexNumber, null, out result);
 	}
 
 	// 0 = Pause
@@ -284,17 +280,13 @@ public static class Debugger
 				context.LogExecution = true;
 				break;
 			}
-			default:
-			{
-				break;
-			}
 		}
 
 		Console.WriteLine();
 	}
 
 	/// <summary>
-	/// Gets a formatted string with a dump of stack memory from SP-minus to SP+plus
+	///     Gets a formatted string with a dump of stack memory from SP-minus to SP+plus
 	/// </summary>
 	/// <param name="plus"></param>
 	/// <param name="minus"></param>
@@ -306,23 +298,24 @@ public static class Debugger
 	}
 
 	/// <summary>
-	/// Gets a formatted string with a dump of memory starting at baseAddress for length bytes.
+	///     Gets a formatted string with a dump of memory starting at baseAddress for length bytes.
 	/// </summary>
 	public static string GetMemoryDump(MachineContext context, uint baseAddress, int length, int bytesPerLine)
 	{
-		return GetMemoryDump(context, baseAddress, 0, length, bytesPerLine, addStackLabels: false);
+		return GetMemoryDump(context, baseAddress, 0, length, bytesPerLine, false);
 	}
 
 	/// <summary>
-	/// Gets a formatted string with a dump of memory relative to a base address, from base+minus to base+plus.
-	/// Used for stack dumps, where entries are labeled as [SP+n] / [SP-n] and the SP row is marked.
+	///     Gets a formatted string with a dump of memory relative to a base address, from base+minus to base+plus.
+	///     Used for stack dumps, where entries are labeled as [SP+n] / [SP-n] and the SP row is marked.
 	/// </summary>
 	public static string GetMemoryDump(MachineContext context, uint baseAddress, int minus, int plus, int bytesPerLine)
 	{
-		return GetMemoryDump(context, baseAddress, minus, plus - minus, bytesPerLine, addStackLabels: true);
+		return GetMemoryDump(context, baseAddress, minus, plus - minus, bytesPerLine, true);
 	}
 
-	private static string GetMemoryDump(
+	private static string GetMemoryDump
+	(
 		MachineContext context,
 		uint baseAddress,
 		int startOffset,
@@ -388,6 +381,7 @@ public static class Debugger
 
 				sb.Append(characters[j]);
 			}
+
 			sb.Append('\"');
 
 			if (addStackLabels && i == 0)
@@ -405,7 +399,7 @@ public static class Debugger
 	public static string GetStandardRegisterDisplayString(MachineContext context)
 	{
 		StringBuilder sb = new();
-		CPU.Registers registers = context.Cpu.Registers;
+		Registers registers = context.Cpu.Registers;
 
 		sb.Append($"AF: {registers.Read(Constants.RegisterTarget.AF, Constants.DataSize.Dword):X8} ");
 		sb.Append($"BC: {registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword):X8} ");
@@ -429,7 +423,7 @@ public static class Debugger
 	{
 		var sb = new StringBuilder();
 
-		CPU.Registers registers = context.Cpu.Registers;
+		Registers registers = context.Cpu.Registers;
 		sb.AppendLine("Registers:");
 		sb.AppendLine(GetStandardRegisterDisplayString(context));
 		sb.AppendLine("Alternate Registers:");
@@ -443,7 +437,7 @@ public static class Debugger
 	}
 
 	/// <summary>
-	/// Gets a formatted string with the name of the previous symbol plus an offset
+	///     Gets a formatted string with the name of the previous symbol plus an offset
 	/// </summary>
 	/// <param name="address"></param>
 	/// <returns></returns>
@@ -467,10 +461,8 @@ public static class Debugger
 					uint offset = address - (uint)lastBelow.Value;
 					return $"{lastBelow.Name}+{offset} ({address:X8})";
 				}
-				else
-				{
-					lastBelow = symbol;
-				}
+
+				lastBelow = symbol;
 			}
 		}
 

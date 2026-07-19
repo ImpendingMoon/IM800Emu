@@ -7,7 +7,7 @@ public class InterruptBus
 	private readonly List<(IInterruptingDevice device, int priority)> _devices = [];
 
 	/// <summary>
-	/// Attaches a device to the interrupt daisy-chain.
+	///     Attaches a device to the interrupt daisy-chain.
 	/// </summary>
 	/// <param name="priority">Priority in the daisy-chain. Lower values are higher priority.</param>
 	/// <param name="device">Device to attach</param>
@@ -60,8 +60,8 @@ public class InterruptBus
 	}
 
 	/// <summary>
-	/// Called by the CPU to acknowledge an interrupt. Finds the highest-priority
-	/// eligible device and lets it respond.
+	///     Called by the CPU to acknowledge an interrupt. Finds the highest-priority
+	///     eligible device and lets it respond.
 	/// </summary>
 	/// <returns>The 8-bit interrupt number, or 0xFF if no device responds</returns>
 	public byte AcknowledgeInterrupt()
@@ -92,7 +92,7 @@ public class InterruptBus
 	}
 
 	/// <summary>
-	/// Called by the CPU to complete an interrupt (RETI/RETN).
+	///     Called by the CPU to complete an interrupt (RETI/RETN).
 	/// </summary>
 	public void CompleteInterrupt()
 	{
@@ -106,8 +106,8 @@ public class InterruptBus
 	}
 
 	/// <summary>
-	/// A device is eligible to be acknowledged only if no higher-priority device
-	/// is currently servicing an interrupt.
+	///     A device is eligible to be acknowledged only if no higher-priority device
+	///     is currently servicing an interrupt.
 	/// </summary>
 	private bool IsEligibleForInterrupt(int deviceIndex)
 	{

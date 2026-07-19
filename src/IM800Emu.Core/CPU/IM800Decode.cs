@@ -12,8 +12,8 @@ public partial class IM800
 		// 12:10 Dest register
 		// 15:13 Src register
 
-		decodeResult.ResultObject.Destination = new();
-		decodeResult.ResultObject.Source = new();
+		decodeResult.ResultObject.Destination = new Operand();
+		decodeResult.ResultObject.Source = new Operand();
 
 		int opcode = (decodeResult.ResultObject.InstructionWord >> 2) & 0b111111;
 		decodeResult.ResultObject.Operation = opcode switch
@@ -42,7 +42,7 @@ public partial class IM800
 			0b011000 => Constants.Operation.SLA,
 			0b011001 => Constants.Operation.SRA,
 			0b011010 => Constants.Operation.SRL,
-			_ => Constants.Operation.Invalid,
+			_ => Constants.Operation.Invalid
 		};
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
@@ -88,7 +88,7 @@ public partial class IM800
 
 		if (destinationSelector == (int)Constants.RegisterSelector.Immediate)
 		{
-			decodeResult.AddError(_decodeErrorName, $"destination register cannot be immediate");
+			decodeResult.AddError(_decodeErrorName, "destination register cannot be immediate");
 			return;
 		}
 
@@ -110,7 +110,6 @@ public partial class IM800
 
 			if (!immediateResult.IsSuccess)
 			{
-				return;
 			}
 		}
 		else
@@ -131,8 +130,8 @@ public partial class IM800
 		// 12:10 Register
 		// 15:13 Address register
 
-		decodeResult.ResultObject.Destination = new();
-		decodeResult.ResultObject.Source = new();
+		decodeResult.ResultObject.Destination = new Operand();
+		decodeResult.ResultObject.Source = new Operand();
 
 		int opcode = (decodeResult.ResultObject.InstructionWord >> 2) & 0b11111;
 		decodeResult.ResultObject.Operation = opcode switch
@@ -162,7 +161,7 @@ public partial class IM800
 			0b11000 => Constants.Operation.SLA,
 			0b11001 => Constants.Operation.SRA,
 			0b11010 => Constants.Operation.SRL,
-			_ => Constants.Operation.Invalid,
+			_ => Constants.Operation.Invalid
 		};
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
@@ -217,7 +216,7 @@ public partial class IM800
 			&& addressRegisterSelector == (int)Constants.RegisterSelector.Immediate
 		)
 		{
-			decodeResult.AddError(_decodeErrorName, $"cannot use an immediate value and a direct address");
+			decodeResult.AddError(_decodeErrorName, "cannot use an immediate value and a direct address");
 			return;
 		}
 
@@ -226,11 +225,7 @@ public partial class IM800
 		Constants.DataSize memoryDataSize = store ? destinationSize : sourceSize;
 
 		// Need to evaluate memoryOperand first, since displacements come before immediates
-		Operand memoryOperand = new()
-		{
-			DataSize = memoryDataSize,
-			Indirect = true,
-		};
+		Operand memoryOperand = new() { DataSize = memoryDataSize, Indirect = true };
 
 		if (addressRegisterSelector == (int)Constants.RegisterSelector.Immediate)
 		{
@@ -267,16 +262,13 @@ public partial class IM800
 			}
 		}
 
-		Operand registerOperand = new()
-		{
-			DataSize = registerDataSize,
-		};
+		Operand registerOperand = new() { DataSize = registerDataSize };
 
 		if (registerSelector == (int)Constants.RegisterSelector.Immediate)
 		{
 			if (!store)
 			{
-				decodeResult.AddError(_decodeErrorName, $"cannot use an immediate value as a destination");
+				decodeResult.AddError(_decodeErrorName, "cannot use an immediate value as a destination");
 				return;
 			}
 
@@ -311,7 +303,7 @@ public partial class IM800
 		// 12:10 Register
 		// 15:13 Function
 
-		decodeResult.ResultObject.Destination = new();
+		decodeResult.ResultObject.Destination = new Operand();
 
 		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b1111;
 		int function = (decodeResult.ResultObject.InstructionWord >> 13) & 0b111;
@@ -330,7 +322,7 @@ public partial class IM800
 			0b0001_010 => Constants.Operation.MLT,
 			0b0001_011 => Constants.Operation.DIV,
 			0b0001_100 => Constants.Operation.SDIV,
-			_ => Constants.Operation.Invalid,
+			_ => Constants.Operation.Invalid
 		};
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
@@ -358,9 +350,10 @@ public partial class IM800
 
 		int registerSelector = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
 
-		if (registerSelector == (int)Constants.RegisterSelector.Immediate && decodeResult.ResultObject.Operation != Constants.Operation.PUSH)
+		if (registerSelector == (int)Constants.RegisterSelector.Immediate &&
+			decodeResult.ResultObject.Operation != Constants.Operation.PUSH)
 		{
-			decodeResult.AddError(_decodeErrorName, $"Format UR cannot use an immediate value");
+			decodeResult.AddError(_decodeErrorName, "Format UR cannot use an immediate value");
 			return;
 		}
 
@@ -372,15 +365,14 @@ public partial class IM800
 
 			if (!immediateResult.IsSuccess)
 			{
-				return;
 			}
 		}
 		else
 		{
 			decodeResult.ResultObject.Destination.Register = DecodeRegister(
-			registerSelector,
-			decodeResult.ResultObject.Destination.DataSize
-		);
+				registerSelector,
+				decodeResult.ResultObject.Destination.DataSize
+			);
 		}
 	}
 
@@ -393,10 +385,7 @@ public partial class IM800
 		// 12:10 Function
 		// 15:13 Address register
 
-		decodeResult.ResultObject.Destination = new()
-		{
-			Indirect = true
-		};
+		decodeResult.ResultObject.Destination = new Operand { Indirect = true };
 
 		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b1111;
 		int function = (decodeResult.ResultObject.InstructionWord >> 10) & 0b111;
@@ -412,7 +401,7 @@ public partial class IM800
 			0b0001_010 => Constants.Operation.MLT,
 			0b0001_011 => Constants.Operation.DIV,
 			0b0001_100 => Constants.Operation.SDIV,
-			_ => Constants.Operation.Invalid,
+			_ => Constants.Operation.Invalid
 		};
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
@@ -489,7 +478,7 @@ public partial class IM800
 		// 12:9 Condition
 		// 15:13 Address register
 
-		decodeResult.ResultObject.Destination = new();
+		decodeResult.ResultObject.Destination = new Operand();
 
 		int opcode = (decodeResult.ResultObject.InstructionWord >> 4) & 0b11111;
 
@@ -572,7 +561,7 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.RET && registerSelector != 0)
 		{
-			decodeResult.AddError(_decodeErrorName, $"RET must have a register selector of 0");
+			decodeResult.AddError(_decodeErrorName, "RET must have a register selector of 0");
 			return;
 		}
 
@@ -584,7 +573,6 @@ public partial class IM800
 
 			if (!immediateResult.IsSuccess)
 			{
-				return;
 			}
 		}
 		else if (decodeResult.ResultObject.Operation != Constants.Operation.RET)
@@ -628,7 +616,7 @@ public partial class IM800
 			0b0001_00001010 => Constants.Operation.LDAR,
 			0b0001_00001011 => Constants.Operation.LDRA,
 			0b1111_00000000 => Constants.Operation.BKPT,
-			_ => Constants.Operation.Invalid,
+			_ => Constants.Operation.Invalid
 		};
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
@@ -651,10 +639,9 @@ public partial class IM800
 				return;
 			}
 
-			decodeResult.ResultObject.Destination = new()
+			decodeResult.ResultObject.Destination = new Operand
 			{
-				DataSize = Constants.DataSize.Dword,
-				Data = immediateResult.ResultObject.Data,
+				DataSize = Constants.DataSize.Dword, Data = immediateResult.ResultObject.Data
 			};
 		}
 		else if (
@@ -670,10 +657,9 @@ public partial class IM800
 				return;
 			}
 
-			decodeResult.ResultObject.Destination = new()
+			decodeResult.ResultObject.Destination = new Operand
 			{
-				DataSize = Constants.DataSize.Byte,
-				Data = immediateResult.ResultObject.Data,
+				DataSize = Constants.DataSize.Byte, Data = immediateResult.ResultObject.Data
 			};
 		}
 	}
@@ -692,7 +678,7 @@ public partial class IM800
 			0b0001 => Constants.Operation.DJNZ,
 			0b0010 => Constants.Operation.JAZ,
 			0b0011 => Constants.Operation.JANZ,
-			_ => Constants.Operation.Invalid,
+			_ => Constants.Operation.Invalid
 		};
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
@@ -710,11 +696,7 @@ public partial class IM800
 		{
 			uint data = (uint)(decodeResult.ResultObject.InstructionWord >> 8);
 			decodeResult.ResultObject.DataSize = Constants.DataSize.Byte;
-			decodeResult.ResultObject.Destination = new()
-			{
-				DataSize = Constants.DataSize.Byte,
-				Data = data,
-			};
+			decodeResult.ResultObject.Destination = new Operand { DataSize = Constants.DataSize.Byte, Data = data };
 		}
 	}
 
@@ -739,7 +721,7 @@ public partial class IM800
 			0b0000_010 => Constants.Operation.BTST,
 			0b0000_011 => Constants.Operation.BIN,
 			0b0000_100 => Constants.Operation.BOUT,
-			_ => Constants.Operation.Invalid,
+			_ => Constants.Operation.Invalid
 		};
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
@@ -773,7 +755,7 @@ public partial class IM800
 	}
 
 	/// <summary>
-	/// Decodes a register target from a 3-bit selector
+	///     Decodes a register target from a 3-bit selector
 	/// </summary>
 	/// <param name="selector"></param>
 	/// <param name="size"></param>
@@ -792,10 +774,11 @@ public partial class IM800
 				0b100 => Constants.RegisterTarget.E,
 				0b101 => Constants.RegisterTarget.H,
 				0b110 => Constants.RegisterTarget.L,
-				_ => throw new ArgumentException($"invalid register selector {selector:X}", nameof(selector)),
+				_ => throw new ArgumentException($"invalid register selector {selector:X}", nameof(selector))
 			};
 		}
-		else if (size == Constants.DataSize.Dword)
+
+		if (size == Constants.DataSize.Dword)
 		{
 			return selector switch
 			{
@@ -806,14 +789,15 @@ public partial class IM800
 				0b100 => Constants.RegisterTarget.IX,
 				0b101 => Constants.RegisterTarget.IY,
 				0b110 => Constants.RegisterTarget.SP,
-				_ => throw new ArgumentException($"invalid register selector {selector:X}", nameof(selector)),
+				_ => throw new ArgumentException($"invalid register selector {selector:X}", nameof(selector))
 			};
 		}
+
 		throw new ArgumentException($"invalid register size {size}", nameof(size));
 	}
 
 	/// <summary>
-	/// Decodes a size from a 2-bit selector
+	///     Decodes a size from a 2-bit selector
 	/// </summary>
 	/// <param name="selector"></param>
 	/// <returns></returns>
@@ -826,7 +810,7 @@ public partial class IM800
 			0b01 => Constants.DataSize.Word,
 			0b10 => Constants.DataSize.Dword,
 			0b11 => Constants.DataSize.Qword,
-			_ => throw new ArgumentException($"invalid size selector {selector:X}", nameof(selector)),
+			_ => throw new ArgumentException($"invalid size selector {selector:X}", nameof(selector))
 		};
 	}
 
@@ -900,14 +884,17 @@ public partial class IM800
 
 	private Result<MemoryOperation> FetchImmediate(Result<DecodedOperation> decodeResult, Constants.DataSize size)
 	{
-		Result<MemoryOperation> readResult = _memoryBus.Read(decodeResult.ResultObject.BaseAddress + decodeResult.ResultObject.Length, size);
+		Result<MemoryOperation> readResult = _memoryBus.Read(
+			decodeResult.ResultObject.BaseAddress + decodeResult.ResultObject.Length,
+			size
+		);
 
 		decodeResult.ResultObject.Length += size switch
 		{
 			Constants.DataSize.Byte => 1,
 			Constants.DataSize.Word => 2,
 			Constants.DataSize.Dword => 4,
-			_ => throw new ArgumentException($"invalid size {size}", nameof(size)),
+			_ => throw new ArgumentException($"invalid size {size}", nameof(size))
 		};
 		decodeResult.ResultObject.FetchCycles += readResult.ResultObject.Cycles;
 

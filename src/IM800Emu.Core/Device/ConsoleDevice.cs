@@ -1,13 +1,15 @@
+using IM800Emu.Core.Machine;
+
 namespace IM800Emu.Core.Device;
 
 /// <summary>
-/// Memory-mapped console device using stdin/stdout.
-/// Address map:
-/// 0 - STATUS (read)
-/// - b0: RX_READY
-/// - b1: TX_READY
-/// 1 - RX_DATA (read)
-/// 2 - TX_DATA (write)
+///     Memory-mapped console device using stdin/stdout.
+///     Address map:
+///     0 - STATUS (read)
+///     - b0: RX_READY
+///     - b1: TX_READY
+///     1 - RX_DATA (read)
+///     2 - TX_DATA (write)
 /// </summary>
 internal class ConsoleDevice : IMemoryDevice
 {
@@ -17,17 +19,58 @@ internal class ConsoleDevice : IMemoryDevice
 
 	public const byte StatusRxReadyBit = 0b0000_0001;
 	public const byte StatusTxReadyBit = 0b0000_0010;
+	private readonly MachineContext _machineContext;
 
 	private readonly Stream _stdout = Console.OpenStandardOutput();
-	private readonly Machine.MachineContext _machineContext;
 
-	public ConsoleDevice(Machine.MachineContext machineContext)
+	public ConsoleDevice(MachineContext machineContext)
 	{
 		_machineContext = machineContext;
-		Console.WriteLine("Virtual Console Device being used. Press Ctrl+D (EOF) to exit. Press Ctrl+P to enter the debugger.");
+		Console.WriteLine(
+			"Virtual Console Device being used. Press Ctrl+D (EOF) to exit. Press Ctrl+P to enter the debugger."
+		);
 	}
 
 	public uint Length => 4;
+
+	public Result<byte?> Read(uint address)
+	{
+		Result<byte?> result = new(0);
+		uint offset = address % Length;
+
+		if (offset == StatusOffset)
+		{
+			result.ResultObject = BuildStatus();
+		}
+		else if (offset == RxDataOffset)
+		{
+			result.ResultObject = ReadRx();
+		}
+		else
+		{
+			result.AddError("ConsoleDevice", $"invalid read address {address}");
+		}
+
+		return result;
+	}
+
+	public Result Write(uint address, byte value)
+	{
+		Result result = new();
+		uint offset = address % Length;
+
+		if (offset == TxDataOffset)
+		{
+			_stdout.WriteByte(value);
+			_stdout.Flush();
+		}
+		else
+		{
+			result.AddError("ConsoleDevice", $"invalid write address {address}");
+		}
+
+		return result;
+	}
 
 	private byte BuildStatus()
 	{
@@ -75,44 +118,5 @@ internal class ConsoleDevice : IMemoryDevice
 		}
 
 		return (byte)data;
-	}
-
-	public Result<byte?> Read(uint address)
-	{
-		Result<byte?> result = new(0);
-		uint offset = address % Length;
-
-		if (offset == StatusOffset)
-		{
-			result.ResultObject = BuildStatus();
-		}
-		else if (offset == RxDataOffset)
-		{
-			result.ResultObject = ReadRx();
-		}
-		else
-		{
-			result.AddError("ConsoleDevice", $"invalid read address {address}");
-		}
-
-		return result;
-	}
-
-	public Result Write(uint address, byte value)
-	{
-		Result result = new();
-		uint offset = address % Length;
-
-		if (offset == TxDataOffset)
-		{
-			_stdout.WriteByte((byte)value);
-			_stdout.Flush();
-		}
-		else
-		{
-			result.AddError("ConsoleDevice", $"invalid write address {address}");
-		}
-
-		return result;
 	}
 }

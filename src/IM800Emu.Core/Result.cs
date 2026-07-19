@@ -1,7 +1,7 @@
 namespace IM800Emu.Core;
 
 /// <summary>
-/// For actions where failure is an expected result.
+///     For actions where failure is an expected result.
 /// </summary>
 public class Result
 {
@@ -11,7 +11,7 @@ public class Result
 	public IReadOnlyList<Error> Errors => _errors;
 
 	/// <summary>
-	/// Adds an error string to this result
+	///     Adds an error string to this result
 	/// </summary>
 	/// <param name="message"></param>
 	public void AddError(string source, string message)
@@ -21,7 +21,7 @@ public class Result
 	}
 
 	/// <summary>
-	/// Appends the errors of the other result to this result
+	///     Appends the errors of the other result to this result
 	/// </summary>
 	/// <param name="other"></param>
 	public void Combine(Result other)
@@ -48,8 +48,8 @@ public class Result
 }
 
 /// <summary>
-/// For actions where failure is an expected result.
-/// Includes a member for returning an object.
+///     For actions where failure is an expected result.
+///     Includes a member for returning an object.
 /// </summary>
 /// <typeparam name="T">Type of the result object</typeparam>
 public class Result<T> : Result

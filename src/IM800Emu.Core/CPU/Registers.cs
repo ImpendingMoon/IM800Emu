@@ -4,10 +4,17 @@ using System.Text;
 namespace IM800Emu.Core.CPU;
 
 /// <summary>
-///
 /// </summary>
 public class Registers
 {
+	// Register file size:
+	// AF+BC+DE+HL+IX+IY+SP @ 4-bytes = 28 bytes
+	// + alts = 56 bytes
+	// + PC = 60 bytes
+	// + I = 64 bytes
+	// + R = 66 bytes
+	private readonly byte[] _data = new byte[66];
+
 	public uint Read(Constants.RegisterTarget register, Constants.DataSize size)
 	{
 		int index = ReadIndex(register);
@@ -16,7 +23,7 @@ public class Registers
 			Constants.DataSize.Byte => _data[index],
 			Constants.DataSize.Word => BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan(index)),
 			Constants.DataSize.Dword => BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan(index)),
-			_ => throw new ArgumentException($"invalid register size {size}", nameof(size)),
+			_ => throw new ArgumentException($"invalid register size {size}", nameof(size))
 		};
 	}
 
@@ -125,6 +132,7 @@ public class Registers
 		sb.Append($"C: {GetFlag(Constants.FlagMask.Carry)} ");
 		sb.Append($"N: {GetFlag(Constants.FlagMask.Subtract)} ");
 		sb.Append($"PV: {GetFlag(Constants.FlagMask.ParityOverflow)} ");
+		sb.Append($"Less: {GetFlag(Constants.FlagMask.Less)}");
 		sb.Append($"H: {GetFlag(Constants.FlagMask.HalfCarry)} ");
 		sb.Append($"Z: {GetFlag(Constants.FlagMask.Zero)} ");
 		sb.Append($"S: {GetFlag(Constants.FlagMask.Sign)} ");
@@ -154,14 +162,6 @@ public class Registers
 	{
 		return GetStandardDisplayString();
 	}
-
-	// Register file size:
-	// AF+BC+DE+HL+IX+IY+SP @ 4-bytes = 28 bytes
-	// + alts = 56 bytes
-	// + PC = 60 bytes
-	// + I = 64 bytes
-	// + R = 66 bytes
-	private readonly byte[] _data = new byte[66];
 
 	private static int ReadIndex(Constants.RegisterTarget register)
 	{

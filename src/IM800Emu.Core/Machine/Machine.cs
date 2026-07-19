@@ -6,16 +6,16 @@ namespace IM800Emu.Core.Machine;
 
 public class Machine
 {
-	private MachineContext _context;
+	private readonly MachineContext _context;
 
 	public Machine(byte[] startupRom, List<Symbol> symbols)
 	{
-		_context = new();
+		_context = new MachineContext();
 		Debugger.AttachDebugger(_context);
 
 		_context.AddSymbols(symbols);
 
-		RAMDevice rom = new(startupRom, readOnly: true);
+		RAMDevice rom = new(startupRom, true);
 		RAMDevice ram = new(0x40000);
 
 		// Address space is first decoded into 2 MiB chunks (16 MiB address space / 8)
@@ -74,13 +74,14 @@ public class Machine
 			{
 				cyclesUsed = 7; // Typical instruction word fetch + execute timing
 			}
+
 			_context.CurrentFrameCyclesRemaining -= cyclesUsed;
 
 			if (!result.IsSuccess)
 			{
 				Console.WriteLine();
 
-				foreach (var error in result.Errors)
+				foreach (Result.Error error in result.Errors)
 				{
 					Console.WriteLine(error);
 				}
@@ -108,7 +109,7 @@ public class Machine
 				}
 				else
 				{
-					Console.WriteLine($"Not a valid instruction.");
+					Console.WriteLine("Not a valid instruction.");
 				}
 
 				Console.WriteLine(_context.GetStandardRegisterDisplayString());

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using IM800Emu.Core;
 using IM800Emu.Core.IM800Debug;
 using IM800Emu.Core.Machine;
@@ -15,7 +16,7 @@ internal class Program
 			return;
 		}
 
-		string startupRomPath = GetFilePath(args[0], mustExist: true);
+		string startupRomPath = GetFilePath(args[0], true);
 		byte[] startupRom = [];
 
 		try
@@ -31,7 +32,7 @@ internal class Program
 		List<Symbol> symbols = [];
 		if (args.Length == 2)
 		{
-			string symbolFilePath = GetFilePath(args[1], mustExist: true);
+			string symbolFilePath = GetFilePath(args[1], true);
 			symbols = TryParseSymbolFile(symbolFilePath);
 		}
 
@@ -77,10 +78,7 @@ internal class Program
 			{
 				Thread.Sleep((int)sleepMs);
 			}
-			else
-			{
-				// Console.WriteLine("Emulator overloaded!");
-			}
+			// Console.WriteLine("Emulator overloaded!");
 		}
 	}
 
@@ -96,7 +94,7 @@ internal class Program
 			if (parts.Length < 3)
 			{
 				throw new InvalidOperationException(
-					$"Symbol file line must have 3 sections: \"<name>|<type>|<value>\""
+					"Symbol file line must have 3 sections: \"<name>|<type>|<value>\""
 				);
 			}
 
@@ -117,13 +115,15 @@ internal class Program
 			if (type == Constants.SymbolType.Label)
 			{
 				if (!long.TryParse(
-					valuePart,
-					System.Globalization.NumberStyles.HexNumber,
-					null,
-					out value
-				))
+						valuePart,
+						NumberStyles.HexNumber,
+						null,
+						out value
+					))
 				{
-					throw new InvalidOperationException($"Could not parse value \"{valuePart}\" for label symbol {name}");
+					throw new InvalidOperationException(
+						$"Could not parse value \"{valuePart}\" for label symbol {name}"
+					);
 				}
 			}
 			else if (type == Constants.SymbolType.EQU)

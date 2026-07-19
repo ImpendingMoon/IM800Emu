@@ -1,47 +1,51 @@
 using System.Diagnostics;
-using System.Text;
 using IM800Emu.Core.Bus;
 
 namespace IM800Emu.Core.CPU;
 
 /// <summary>
-/// Implements the IM800 ISA. Split into several files: IM800.cs, IM800Decode.cs, and IM800Execute.cs
+///     Implements the IM800 ISA. Split into several files: IM800.cs, IM800Decode.cs, and IM800Execute.cs
 /// </summary>
 public partial class IM800
 {
-	private readonly Registers _registers;
-	private readonly MemoryBus _memoryBus;
-	private readonly MemoryBus _ioBus;
-	private readonly InterruptBus _interruptBus;
 	private static readonly string _decodeErrorName = "Decode";
 	private static readonly string _executeErrorName = "Execute";
-	private bool _pendingEnableInterrupts = false;
-	private bool _enableInterrupts = false;
-	private bool _halted = false;
-	private int _interruptMode = 1;
-	private Action<uint, uint> _handleBreakpointInstruction;
+	private readonly InterruptBus _interruptBus;
+	private readonly MemoryBus _ioBus;
+	private readonly MemoryBus _memoryBus;
 
 	/// <summary>
-	/// The currently-executing block operation. If this is not null, this operation will be re-sent by Decode()
+	///     The currently-executing block operation. If this is not null, this operation will be re-sent by Decode()
 	/// </summary>
-	private DecodedOperation? _currentBlockOperation = null;
+	private DecodedOperation? _currentBlockOperation;
 
-	public Registers Registers => _registers;
+	private bool _enableInterrupts;
+	private bool _halted;
+	private readonly Action<uint, uint> _handleBreakpointInstruction;
+	private int _interruptMode = 1;
+	private bool _pendingEnableInterrupts;
 
-	public IM800(MemoryBus memoryBus, MemoryBus ioBus, InterruptBus interruptBus, Action<uint, uint> handleBreakpointInstruction)
+	public IM800
+	(MemoryBus memoryBus,
+		MemoryBus ioBus,
+		InterruptBus interruptBus,
+		Action<uint, uint> handleBreakpointInstruction
+	)
 	{
-		_registers = new();
+		Registers = new Registers();
 		_memoryBus = memoryBus;
 		_ioBus = ioBus;
 		_interruptBus = interruptBus;
 		_handleBreakpointInstruction = handleBreakpointInstruction;
 	}
 
+	public Registers Registers { get; }
+
 	public Result Reset()
 	{
 		Result result = new();
 
-		_registers.ClearRegisters();
+		Registers.ClearRegisters();
 		// Read reset vector
 		Result<MemoryOperation> resetVectorResult = _memoryBus.Read(0x00000000, Constants.DataSize.Dword);
 		result.Combine(resetVectorResult);
@@ -51,59 +55,46 @@ public partial class IM800
 	}
 
 	/// <summary>
-	/// Decodes the next operation to execute. Includes interrupts, halt states, and the instruction at PC.
+	///     Decodes the next operation to execute. Includes interrupts, halt states, and the instruction at PC.
 	/// </summary>
 	/// <returns></returns>
 	public Result<DecodedOperation> Decode()
 	{
 		if (_interruptBus.IsNonMaskableInterruptPending())
 		{
-			DecodedOperation operation = new()
-			{
-				Operation = Constants.Operation.NonMaskableInterrupt,
-			};
-			return new(operation);
+			DecodedOperation operation = new() { Operation = Constants.Operation.NonMaskableInterrupt };
+			return new Result<DecodedOperation>(operation);
 		}
 
 		if (_interruptBus.IsInterruptPending() && Registers.GetFlag(Constants.FlagMask.EnableInterrupts))
 		{
-			DecodedOperation operation = new()
-			{
-				Operation = Constants.Operation.Interrupted,
-			};
-			return new(operation);
+			DecodedOperation operation = new() { Operation = Constants.Operation.Interrupted };
+			return new Result<DecodedOperation>(operation);
 		}
 
 		if (_currentBlockOperation is not null)
 		{
-			return new(_currentBlockOperation);
+			return new Result<DecodedOperation>(_currentBlockOperation);
 		}
 
 		if (_halted)
 		{
-			DecodedOperation operation = new()
-			{
-				Operation = Constants.Operation.Halted,
-			};
-			return new(operation);
+			DecodedOperation operation = new() { Operation = Constants.Operation.Halted };
+			return new Result<DecodedOperation>(operation);
 		}
 
-		uint pc = _registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+		uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 		return DecodeAt(pc);
 	}
 
 	/// <summary>
-	/// Decodes the data at a given address as an instruction.
+	///     Decodes the data at a given address as an instruction.
 	/// </summary>
 	/// <param name="baseAddress"></param>
 	/// <returns></returns>
 	public Result<DecodedOperation> DecodeAt(uint baseAddress)
 	{
-		DecodedOperation resultObject = new()
-		{
-			BaseAddress = baseAddress,
-			Length = 2,
-		};
+		DecodedOperation resultObject = new() { BaseAddress = baseAddress, Length = 2 };
 		Result<DecodedOperation> decodeResult = new(resultObject);
 
 		Result<MemoryOperation> fetchResult = _memoryBus.Read(baseAddress, Constants.DataSize.Word);
@@ -159,6 +150,7 @@ public partial class IM800
 						break;
 					}
 				}
+
 				break;
 			}
 			case 0b11:
@@ -185,6 +177,7 @@ public partial class IM800
 						break;
 					}
 				}
+
 				break;
 			}
 		}
@@ -193,20 +186,20 @@ public partial class IM800
 	}
 
 	/// <summary>
-	/// Executes a decoded operation. Expects the operation to come from Decode, and may produce incorrect results when
-	/// used with another operation.
+	///     Executes a decoded operation. Expects the operation to come from Decode, and may produce incorrect results when
+	///     used with another operation.
 	/// </summary>
 	/// <param name="operation"></param>
 	/// <returns>A result with the number of cycles taken to execute</returns>
 	public Result<int> Execute(DecodedOperation operation)
 	{
-		uint pc = _registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+		uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 		pc += operation.Length;
-		_registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
+		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
 
-		uint r = _registers.Read(Constants.RegisterTarget.R, Constants.DataSize.Word);
+		uint r = Registers.Read(Constants.RegisterTarget.R, Constants.DataSize.Word);
 		r++;
-		_registers.Write(Constants.RegisterTarget.R, Constants.DataSize.Word, r);
+		Registers.Write(Constants.RegisterTarget.R, Constants.DataSize.Word, r);
 
 		if (_pendingEnableInterrupts)
 		{
@@ -287,13 +280,13 @@ public partial class IM800
 			Constants.Operation.BIN => ExecuteBIN(operation),
 			Constants.Operation.BOUT => ExecuteBOUT(operation),
 			Constants.Operation.BKPT => ExecuteBKPT(operation),
-			_ => throw new NotImplementedException($"Execute{operation.Operation} does not exist"),
+			_ => throw new NotImplementedException($"Execute{operation.Operation} does not exist")
 		};
 
 		if (_enableInterrupts)
 		{
 			_enableInterrupts = false;
-			_registers.SetFlag(Constants.FlagMask.EnableInterrupts, true);
+			Registers.SetFlag(Constants.FlagMask.EnableInterrupts, true);
 		}
 
 		return executeResult;

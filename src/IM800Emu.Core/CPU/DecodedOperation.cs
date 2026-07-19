@@ -3,7 +3,7 @@ using System.Text;
 namespace IM800Emu.Core.CPU;
 
 /// <summary>
-/// Represents a fully decoded instruction, ready to be executed
+///     Represents a fully decoded instruction, ready to be executed
 /// </summary>
 public class DecodedOperation
 {
@@ -16,8 +16,10 @@ public class DecodedOperation
 	public ushort InstructionWord { get; set; }
 
 	public Constants.DataSize DataSize { get; set; }
+
 	// This is only meaningful for branch instructions
 	public Constants.Condition Condition { get; set; }
+
 	// These are only meaningful for block instructions
 	public bool Increment { get; set; }
 	public bool Repeat { get; set; }
@@ -36,7 +38,7 @@ public class DecodedOperation
 			Constants.Operation.LDI => "LD I,",
 			Constants.Operation.LDAR => "LD A, R",
 			Constants.Operation.LDRA => "LD R, A",
-			_ => Operation.ToString(),
+			_ => Operation.ToString()
 		};
 
 		result.Append(mnemonic);
@@ -46,7 +48,7 @@ public class DecodedOperation
 			Constants.DataSize.Byte => ".B",
 			Constants.DataSize.Word => ".W",
 			Constants.DataSize.Dword => ".D",
-			_ => string.Empty,
+			_ => string.Empty
 		};
 
 		if (!string.IsNullOrEmpty(size) && Operation is not Constants.Operation.LEA)
@@ -73,7 +75,7 @@ public class DecodedOperation
 				Constants.Condition.ParityEven_Overflow => "PE",
 				Constants.Condition.Plus => "P",
 				Constants.Condition.Minus => "N",
-				_ => Condition.ToString(),
+				_ => Condition.ToString()
 			};
 
 			if (!string.IsNullOrEmpty(condition))

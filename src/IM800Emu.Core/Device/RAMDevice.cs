@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace IM800Emu.Core.Device;
 
 internal class RAMDevice : IMemoryDevice

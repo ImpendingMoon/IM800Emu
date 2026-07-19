@@ -5,12 +5,11 @@ using IM800Emu.Core.Device;
 namespace IM800Emu.Core.Bus;
 
 /// <summary>
-/// 
 /// </summary>
 public class MemoryBus
 {
-	private readonly List<DeviceMapping> _mappings = [];
 	private readonly int _baseMemoryCost = 3; // TODO: make this a config setting and/or figure out who owns this
+	private readonly List<DeviceMapping> _mappings = [];
 
 	public void AddDevice(IMemoryDevice device, uint baseAddress, uint addressSpaceLength)
 	{
@@ -40,7 +39,7 @@ public class MemoryBus
 			Constants.DataSize.Byte => 1,
 			Constants.DataSize.Word => 2,
 			Constants.DataSize.Dword => 4,
-			_ => throw new ArgumentException($"invalid size {size}", nameof(size)),
+			_ => throw new ArgumentException($"invalid size {size}", nameof(size))
 		};
 
 		byte[] bytes = new byte[4];
@@ -63,10 +62,7 @@ public class MemoryBus
 
 	public Result<MemoryOperation> Write(uint address, Constants.DataSize size, uint data)
 	{
-		MemoryOperation resultObject = new()
-		{
-			Data = data,
-		};
+		MemoryOperation resultObject = new() { Data = data };
 		Result<MemoryOperation> result = new(resultObject);
 
 		byte[] bytes = new byte[4];
@@ -77,7 +73,7 @@ public class MemoryBus
 			Constants.DataSize.Byte => 1,
 			Constants.DataSize.Word => 2,
 			Constants.DataSize.Dword => 4,
-			_ => throw new ArgumentException($"invalid size {size}", nameof(size)),
+			_ => throw new ArgumentException($"invalid size {size}", nameof(size))
 		};
 
 		// Write data, accumulate cycles
@@ -97,10 +93,7 @@ public class MemoryBus
 
 	private Result<MemoryOperation> ReadByteInternal(uint address)
 	{
-		MemoryOperation resultObject = new()
-		{
-			Cycles = _baseMemoryCost,
-		};
+		MemoryOperation resultObject = new() { Cycles = _baseMemoryCost };
 
 		Result<MemoryOperation> result = new(resultObject);
 
@@ -124,10 +117,7 @@ public class MemoryBus
 
 	private Result<MemoryOperation> WriteByteInternal(uint address, byte value)
 	{
-		MemoryOperation resultObject = new()
-		{
-			Cycles = _baseMemoryCost,
-		};
+		MemoryOperation resultObject = new() { Cycles = _baseMemoryCost };
 		Result<MemoryOperation> result = new(resultObject);
 
 		Result<DeviceMapping?> findResult = FindDeviceMapping(address);

@@ -16,8 +16,10 @@ public partial class IM800
 			Constants.Condition.ParityEven_Overflow => Registers.GetFlag(Constants.FlagMask.ParityOverflow),
 			Constants.Condition.Plus => !Registers.GetFlag(Constants.FlagMask.Sign),
 			Constants.Condition.Minus => Registers.GetFlag(Constants.FlagMask.Sign),
+			Constants.Condition.GreaterEqual => !Registers.GetFlag(Constants.FlagMask.Less),
+			Constants.Condition.Less => Registers.GetFlag(Constants.FlagMask.Less),
 			Constants.Condition.Always => true,
-			_ => throw new InvalidOperationException($"invalid condition {condition}"),
+			_ => throw new InvalidOperationException($"invalid condition {condition}")
 		};
 	}
 
@@ -35,7 +37,7 @@ public partial class IM800
 		{
 			if (operand.Register != default)
 			{
-				memoryOperation.Data = _registers.Read(operand.Register, operand.DataSize);
+				memoryOperation.Data = Registers.Read(operand.Register, operand.DataSize);
 			}
 			else
 			{
@@ -64,7 +66,7 @@ public partial class IM800
 			}
 			else
 			{
-				_registers.Write(operand.Register, operand.DataSize, data);
+				Registers.Write(operand.Register, operand.DataSize, data);
 			}
 		}
 
@@ -77,7 +79,7 @@ public partial class IM800
 
 		if (operand.Register != default)
 		{
-			address = _registers.Read(operand.Register, Constants.DataSize.Dword);
+			address = Registers.Read(operand.Register, Constants.DataSize.Dword);
 		}
 		else
 		{
@@ -102,10 +104,11 @@ public partial class IM800
 		{
 			Carry = Registers.GetFlag(Constants.FlagMask.Carry),
 			Subtract = Registers.GetFlag(Constants.FlagMask.Subtract),
+			Less = Registers.GetFlag(Constants.FlagMask.Less),
 			ParityOverflow = Registers.GetFlag(Constants.FlagMask.ParityOverflow),
 			HalfCarry = Registers.GetFlag(Constants.FlagMask.HalfCarry),
 			Zero = Registers.GetFlag(Constants.FlagMask.Zero),
-			Sign = Registers.GetFlag(Constants.FlagMask.Sign),
+			Sign = Registers.GetFlag(Constants.FlagMask.Sign)
 		};
 	}
 
@@ -113,6 +116,7 @@ public partial class IM800
 	{
 		Registers.SetFlag(Constants.FlagMask.Carry, state.Carry);
 		Registers.SetFlag(Constants.FlagMask.Subtract, state.Subtract);
+		Registers.SetFlag(Constants.FlagMask.Less, state.Less);
 		Registers.SetFlag(Constants.FlagMask.ParityOverflow, state.ParityOverflow);
 		Registers.SetFlag(Constants.FlagMask.HalfCarry, state.HalfCarry);
 		Registers.SetFlag(Constants.FlagMask.Zero, state.Zero);
@@ -123,6 +127,7 @@ public partial class IM800
 	{
 		public bool Carry;
 		public bool Subtract;
+		public bool Less;
 		public bool ParityOverflow;
 		public bool HalfCarry;
 		public bool Zero;

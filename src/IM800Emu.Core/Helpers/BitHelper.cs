@@ -18,6 +18,7 @@ internal static class BitHelper
 				count++;
 			}
 		}
+
 		return count;
 	}
 
@@ -28,17 +29,17 @@ internal static class BitHelper
 
 	public static bool WillAdditionWrap(byte a, byte b)
 	{
-		return (byte.MaxValue - a) < b;
+		return byte.MaxValue - a < b;
 	}
 
 	public static bool WillAdditionWrap(ushort a, ushort b)
 	{
-		return (ushort.MaxValue - a) < b;
+		return ushort.MaxValue - a < b;
 	}
 
 	public static bool WillAdditionWrap(uint a, uint b)
 	{
-		return (uint.MaxValue - a) < b;
+		return uint.MaxValue - a < b;
 	}
 
 	public static bool WillAdditionOverflow(byte a, byte b)
@@ -84,17 +85,17 @@ internal static class BitHelper
 
 	public static bool WillAdditionHalfCarry(byte a, byte b)
 	{
-		return ((a & 0x0F) + (b & 0x0F)) > 0x0F;
+		return (a & 0x0F) + (b & 0x0F) > 0x0F;
 	}
 
 	public static bool WillAdditionHalfCarry(ushort a, ushort b)
 	{
-		return ((a & 0x0F) + (b & 0x0F)) > 0x0F;
+		return (a & 0x0F) + (b & 0x0F) > 0x0F;
 	}
 
 	public static bool WillAdditionHalfCarry(uint a, uint b)
 	{
-		return ((a & 0x0F) + (b & 0x0F)) > 0x0F;
+		return (a & 0x0F) + (b & 0x0F) > 0x0F;
 	}
 
 	public static bool WillSubtractionHalfCarry(byte a, byte b)
