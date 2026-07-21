@@ -156,4 +156,6 @@ public static class Constants
 	public static readonly int DwordALUCost = 1;
 	public static readonly int CpuSpeedHz = 4000000;
 	public static readonly int TargetFramerate = 60;
+	public static readonly int MemoryBaseWaitStates = 3;
+	public static readonly int IOBaseWaitStates = 4;
 }

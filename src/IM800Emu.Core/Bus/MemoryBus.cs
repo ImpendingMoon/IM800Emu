@@ -8,14 +8,13 @@ namespace IM800Emu.Core.Bus;
 /// </summary>
 public class MemoryBus
 {
-	private readonly int _baseMemoryCost = 3; // TODO: make this a config setting and/or figure out who owns this
 	private readonly List<DeviceMapping> _mappings = [];
 
-	public void AddDevice(IMemoryDevice device, uint baseAddress, uint addressSpaceLength)
+	public void AddDevice(IMemoryDevice device, int waitStates, uint baseAddress, uint addressSpaceLength)
 	{
 		uint roundedLength = BitOperations.RoundUpToPowerOf2(addressSpaceLength);
 
-		var newMapping = new DeviceMapping(device, baseAddress, roundedLength);
+		var newMapping = new DeviceMapping(device, waitStates, baseAddress, addressSpaceLength);
 
 		// Fail if overlapping
 		foreach (DeviceMapping mapping in _mappings)
@@ -93,7 +92,7 @@ public class MemoryBus
 
 	private Result<MemoryOperation> ReadByteInternal(uint address)
 	{
-		MemoryOperation resultObject = new() { Cycles = _baseMemoryCost };
+		MemoryOperation resultObject = new() { Cycles = Constants.MemoryBaseWaitStates };
 
 		Result<MemoryOperation> result = new(resultObject);
 
@@ -107,6 +106,7 @@ public class MemoryBus
 			uint effectiveAddress = address - findResult.ResultObject.BaseAddress;
 			readResult = findResult.ResultObject.Device.Read(effectiveAddress);
 			result.Combine(readResult);
+			resultObject.Cycles = findResult.ResultObject.WaitStates;
 		}
 
 		// Value or open bus
@@ -117,7 +117,7 @@ public class MemoryBus
 
 	private Result<MemoryOperation> WriteByteInternal(uint address, byte value)
 	{
-		MemoryOperation resultObject = new() { Cycles = _baseMemoryCost };
+		MemoryOperation resultObject = new() { Cycles = Constants.MemoryBaseWaitStates };
 		Result<MemoryOperation> result = new(resultObject);
 
 		Result<DeviceMapping?> findResult = FindDeviceMapping(address);
@@ -128,6 +128,7 @@ public class MemoryBus
 			uint effectiveAddress = address - findResult.ResultObject.BaseAddress;
 			Result writeResult = findResult.ResultObject.Device.Write(effectiveAddress, value);
 			result.Combine(writeResult);
+			resultObject.Cycles = findResult.ResultObject.WaitStates;
 		}
 
 		return result;
@@ -156,14 +157,16 @@ public class MemoryBus
 
 	private class DeviceMapping
 	{
-		public DeviceMapping(IMemoryDevice device, uint baseAddress, uint addressSpaceLength)
+		public DeviceMapping(IMemoryDevice device, int waitStates, uint baseAddress, uint addressSpaceLength)
 		{
+			WaitStates =  waitStates;
 			Device = device;
 			BaseAddress = baseAddress;
 			AddressSpaceLength = addressSpaceLength;
 		}
 
 		public IMemoryDevice Device { get; }
+		public int WaitStates { get; }
 		public uint BaseAddress { get; }
 		public uint AddressSpaceLength { get; }
 		public uint MaxAddress => BaseAddress + AddressSpaceLength;

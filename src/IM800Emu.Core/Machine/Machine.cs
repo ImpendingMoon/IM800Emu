@@ -23,15 +23,15 @@ public class Machine
 		// First 2 MiB Chunk: BIOS
 		// BIOS ROM mapped to 0x00_0000-0x03_FFFF (256 KiB)
 		// BIOS extension ROMs follow in 256KB blocks until 0x1F_FFFF
-		_context.MemoryBus.AddDevice(rom, 0x00_0000, 0x03_FFFF);
+		_context.MemoryBus.AddDevice(rom, Constants.MemoryBaseWaitStates, 0x00_0000, 0x03_FFFF);
 
 		// Second 2 MiB Chunk: RAM
 		// RAM starts at 0x20_000, first chunk ends at 0x3F_FFFF
-		_context.MemoryBus.AddDevice(ram, 0x20_0000, 0x3F_FFFF);
+		_context.MemoryBus.AddDevice(ram, Constants.MemoryBaseWaitStates, 0x20_0000, 0x3F_FFFF);
 
 		ConsoleDevice consoleDevice = new(_context);
 
-		_context.IoBus.AddDevice(consoleDevice, 0, consoleDevice.Length);
+		_context.IoBus.AddDevice(consoleDevice, Constants.IOBaseWaitStates, 0, consoleDevice.Length);
 
 		Result resetResult = _context.Cpu.Reset();
 
