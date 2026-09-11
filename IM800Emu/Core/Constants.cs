@@ -158,4 +158,6 @@ public static class Constants
 	public static readonly int TargetFramerate = 60;
 	public static readonly int MemoryBaseWaitStates = 3;
 	public static readonly int IOBaseWaitStates = 4;
+	public static readonly int WindowWidth = 320;
+	public static readonly int WindowHeight = 200;
 }

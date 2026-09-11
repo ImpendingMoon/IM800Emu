@@ -119,7 +119,7 @@ internal class ConsoleDevice : IMemoryDevice
 		{
 			if (key.Key == ConsoleKey.D)
 			{
-				Environment.Exit(1);
+				//Environment.Exit(1);
 			}
 			else if (key.Key == ConsoleKey.P)
 			{

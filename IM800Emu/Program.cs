@@ -1,8 +1,10 @@
 using IM800Emu.Core;
 using IM800Emu.Core.IM800Debug;
 using IM800Emu.Core.Machine;
+using Raylib_cs;
 using System.Diagnostics;
 using System.Globalization;
+using System.Numerics;
 
 namespace IM800Emu;
 
@@ -38,6 +40,12 @@ internal class Program
 
 		var machine = new Machine(startupRom, symbols);
 
+		Raylib.SetConfigFlags(ConfigFlags.ResizableWindow);
+		Raylib.InitWindow(Constants.WindowWidth * 2, Constants.WindowHeight * 2, "IM800Emu");
+		Raylib.SetWindowMinSize(Constants.WindowWidth, Constants.WindowHeight);
+		Raylib.SetExitKey(KeyboardKey.Null);
+		Raylib.SetTraceLogLevel(TraceLogLevel.Warning);
+
 		Run(machine);
 	}
 
@@ -65,11 +73,32 @@ internal class Program
 		double frameIntervalMs = 1000.0 / Constants.TargetFramerate;
 		var stopwatch = new Stopwatch();
 
-		while (true)
+		while (!Raylib.WindowShouldClose())
 		{
 			stopwatch.Restart();
 
 			Result result = machine.StepFrame();
+
+			//Texture2D texture = Raylib.LoadTextureFromImage(machine.Frame);
+			Texture2D texture = new();
+
+			float scaleX = Raylib.GetScreenWidth() / (float)texture.Width;
+			float scaleY = Raylib.GetScreenHeight() / (float)texture.Height;
+
+			var src = new Rectangle(0, 0, texture.Width, texture.Height);
+			var dst = new Rectangle(
+				(Raylib.GetScreenWidth() - (texture.Width * scaleX)) / 2f,
+				(Raylib.GetScreenHeight() - (texture.Height * scaleY)) / 2f,
+				texture.Width * scaleX,
+				texture.Height * scaleY
+			);
+
+			Raylib.BeginDrawing();
+			Raylib.ClearBackground(Color.White);
+			Raylib.DrawTexturePro(texture, src, dst, Vector2.Zero, 0f, Color.White);
+			Raylib.EndDrawing();
+
+			Raylib.UnloadTexture(texture);
 
 			double elapsedMs = stopwatch.ElapsedMilliseconds;
 			double sleepMs = frameIntervalMs - elapsedMs;
@@ -78,7 +107,6 @@ internal class Program
 			{
 				Thread.Sleep((int)sleepMs);
 			}
-			// Console.WriteLine("Emulator overloaded!");
 		}
 	}
 
