@@ -1,10 +1,10 @@
-using System.Diagnostics;
-using System.Globalization;
 using IM800Emu.Core;
 using IM800Emu.Core.IM800Debug;
 using IM800Emu.Core.Machine;
+using System.Diagnostics;
+using System.Globalization;
 
-namespace IM800Emu.App;
+namespace IM800Emu;
 
 internal class Program
 {
