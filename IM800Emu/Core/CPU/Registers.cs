@@ -132,7 +132,7 @@ public class Registers
 		sb.Append($"C: {GetFlag(Constants.FlagMask.Carry)} ");
 		sb.Append($"N: {GetFlag(Constants.FlagMask.Subtract)} ");
 		sb.Append($"PV: {GetFlag(Constants.FlagMask.ParityOverflow)} ");
-		sb.Append($"Less: {GetFlag(Constants.FlagMask.Less)}");
+		sb.Append($"Less: {GetFlag(Constants.FlagMask.LessThan)}");
 		sb.Append($"H: {GetFlag(Constants.FlagMask.HalfCarry)} ");
 		sb.Append($"Z: {GetFlag(Constants.FlagMask.Zero)} ");
 		sb.Append($"S: {GetFlag(Constants.FlagMask.Sign)} ");

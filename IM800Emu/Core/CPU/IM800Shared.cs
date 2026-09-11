@@ -16,8 +16,8 @@ public partial class IM800
 			Constants.Condition.ParityEven_Overflow => Registers.GetFlag(Constants.FlagMask.ParityOverflow),
 			Constants.Condition.Plus => !Registers.GetFlag(Constants.FlagMask.Sign),
 			Constants.Condition.Minus => Registers.GetFlag(Constants.FlagMask.Sign),
-			Constants.Condition.GreaterEqual => !Registers.GetFlag(Constants.FlagMask.Less),
-			Constants.Condition.Less => Registers.GetFlag(Constants.FlagMask.Less),
+			Constants.Condition.GreaterEqual => !Registers.GetFlag(Constants.FlagMask.LessThan),
+			Constants.Condition.LessThan => Registers.GetFlag(Constants.FlagMask.LessThan),
 			Constants.Condition.Always => true,
 			_ => throw new InvalidOperationException($"invalid condition {condition}")
 		};
@@ -104,7 +104,7 @@ public partial class IM800
 		{
 			Carry = Registers.GetFlag(Constants.FlagMask.Carry),
 			Subtract = Registers.GetFlag(Constants.FlagMask.Subtract),
-			Less = Registers.GetFlag(Constants.FlagMask.Less),
+			Less = Registers.GetFlag(Constants.FlagMask.LessThan),
 			ParityOverflow = Registers.GetFlag(Constants.FlagMask.ParityOverflow),
 			HalfCarry = Registers.GetFlag(Constants.FlagMask.HalfCarry),
 			Zero = Registers.GetFlag(Constants.FlagMask.Zero),
@@ -116,7 +116,7 @@ public partial class IM800
 	{
 		Registers.SetFlag(Constants.FlagMask.Carry, state.Carry);
 		Registers.SetFlag(Constants.FlagMask.Subtract, state.Subtract);
-		Registers.SetFlag(Constants.FlagMask.Less, state.Less);
+		Registers.SetFlag(Constants.FlagMask.LessThan, state.Less);
 		Registers.SetFlag(Constants.FlagMask.ParityOverflow, state.ParityOverflow);
 		Registers.SetFlag(Constants.FlagMask.HalfCarry, state.HalfCarry);
 		Registers.SetFlag(Constants.FlagMask.Zero, state.Zero);

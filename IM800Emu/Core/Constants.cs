@@ -13,7 +13,7 @@ public static class Constants
 		ParityEven_Overflow,
 		Plus,
 		Minus,
-		Less,
+		LessThan,
 		GreaterEqual
 	}
 
@@ -36,7 +36,7 @@ public static class Constants
 		Zero = 0b0100_0000,
 		Unused5 = 0b0010_0000,
 		HalfCarry = 0b0001_0000,
-		Less = 0b0000_1000,
+		LessThan = 0b0000_1000,
 		ParityOverflow = 0b0000_0100,
 		Subtract = 0b0000_0010,
 		Carry = 0b0000_0001
