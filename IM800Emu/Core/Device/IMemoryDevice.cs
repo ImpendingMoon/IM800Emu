@@ -3,7 +3,7 @@ namespace IM800Emu.Core.Device;
 public interface IMemoryDevice
 {
 	public uint Length { get; }
-	Result<byte?> Read(uint address);
+	Result<uint?> Read(uint address, Constants.DataSize size);
 
-	Result Write(uint address, byte value);
+	Result Write(uint address, Constants.DataSize size, uint value);
 }

@@ -33,9 +33,15 @@ internal class ConsoleDevice : IMemoryDevice
 
 	public uint Length => 4;
 
-	public Result<byte?> Read(uint address)
+	public Result<uint?> Read(uint address, Constants.DataSize size)
 	{
-		Result<byte?> result = new(0);
+		Result<uint?> result = new(0);
+
+		if (size != Constants.DataSize.Byte)
+		{
+			result.AddError("ConsoleDevice", $"invalid read size {size}");
+		}
+
 		uint offset = address % Length;
 
 		if (offset == StatusOffset)
@@ -54,14 +60,19 @@ internal class ConsoleDevice : IMemoryDevice
 		return result;
 	}
 
-	public Result Write(uint address, byte value)
+	public Result Write(uint address, Constants.DataSize size, uint value)
 	{
 		Result result = new();
 		uint offset = address % Length;
 
+		if (size != Constants.DataSize.Byte)
+		{
+			result.AddError("ConsoleDevice", $"invalid write size {size}");
+		}
+
 		if (offset == TxDataOffset)
 		{
-			_stdout.WriteByte(value);
+			_stdout.WriteByte((byte)value);
 			_stdout.Flush();
 		}
 		else

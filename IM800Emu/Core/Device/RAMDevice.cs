@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+
 namespace IM800Emu.Core.Device;
 
 internal class RAMDevice : IMemoryDevice
@@ -20,15 +22,22 @@ internal class RAMDevice : IMemoryDevice
 
 	public uint Length => (uint)_data.Length;
 
-	public Result<byte?> Read(uint address)
+	public Result<uint?> Read(uint address, Constants.DataSize size)
 	{
 		address %= (uint)_data.Length;
 
-		byte value = _data[address];
-		return new Result<byte?>(value);
+		uint? value = size switch
+		{
+			Constants.DataSize.Byte => _data[address],
+			Constants.DataSize.Word => BinaryPrimitives.ReadUInt16LittleEndian(_data.AsSpan((int)address)),
+			Constants.DataSize.Dword => BinaryPrimitives.ReadUInt32LittleEndian(_data.AsSpan((int)address)),
+			_ => null,
+		};
+
+		return new Result<uint?>(value);
 	}
 
-	public Result Write(uint address, byte value)
+	public Result Write(uint address, Constants.DataSize size, uint value)
 	{
 		address %= (uint)_data.Length;
 
@@ -40,7 +49,20 @@ internal class RAMDevice : IMemoryDevice
 		}
 		else
 		{
-			_data[address] = value;
+			switch (size)
+			{
+				case Constants.DataSize.Byte:
+					_data[address] = (byte)value;
+					break;
+				case Constants.DataSize.Word:
+					BinaryPrimitives.WriteUInt16LittleEndian(_data.AsSpan((int)address), (ushort)value);
+					break;
+				case Constants.DataSize.Dword:
+					BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan((int)address), value);
+					break;
+				default:
+					break;
+			}
 		}
 
 		return result;
