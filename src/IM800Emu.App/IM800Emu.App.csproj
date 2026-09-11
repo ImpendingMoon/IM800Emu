@@ -11,4 +11,8 @@
 		<ProjectReference Include="../IM800Emu.Core/IM800Emu.Core.csproj"/>
 	</ItemGroup>
 
+	<ItemGroup>
+	  <PackageReference Include="Raylib-cs" Version="8.0.0" />
+	</ItemGroup>
+
 </Project>
