@@ -1,4 +1,5 @@
 using IM800Emu.Core.CPU;
+using IM800Emu.Core.Device;
 using IM800Emu.Core.IM800Debug;
 
 namespace IM800Emu.Core.Machine;
@@ -13,6 +14,19 @@ public class Machine
 		Debugger.AttachDebugger(_context);
 
 		_context.AddSymbols(symbols);
+
+		// Memory Map:
+		// 0x000000-0x1FFFFF: ROM (whatever the program has)
+		// 0x200000-0x3FFFFF: RAM (512k)
+		// 0x400000-0x5FFFFF: VRAM (amount tbd)
+		RAMDevice romDevice = new(startupRom, true);
+		RAMDevice ramDevice = new(0x80000);
+
+		_context.MemoryBus.AddDevice(romDevice, Constants.MemoryBaseWaitStates, 0x000000, 0x200000);
+		_context.MemoryBus.AddDevice(ramDevice, Constants.MemoryBaseWaitStates, 0x200000, 0x200000);
+
+		ConsoleDevice uart = new(_context);
+		_context.IoBus.AddDevice(uart, Constants.IOBaseWaitStates, 0, uart.Length);
 
 		Result resetResult = _context.Cpu.Reset();
 
@@ -38,75 +52,95 @@ public class Machine
 
 		while (_context.CurrentFrameCyclesRemaining > 0)
 		{
-			Result instructionResult = new();
-
-			Result<DecodedOperation> decodeResult = _context.Cpu.Decode();
-			instructionResult.Combine(decodeResult);
-
-			_context.CurrentOperation = decodeResult.ResultObject;
-			int cyclesUsed = decodeResult.ResultObject.FetchCycles;
-
-			if (decodeResult.IsSuccess)
-			{
-				Result<int> executeResult = _context.Cpu.Execute(decodeResult.ResultObject);
-				instructionResult.Combine(executeResult);
-				cyclesUsed = executeResult.ResultObject;
-			}
-
-			if (cyclesUsed == 0)
-			{
-				cyclesUsed = 4; // Typical instruction word fetch + execute timing
-			}
-
-			_context.CurrentFrameCyclesRemaining -= cyclesUsed;
-
-			if (!instructionResult.IsSuccess)
-			{
-				Console.WriteLine();
-
-				foreach (Result.Error error in instructionResult.Errors)
-				{
-					Console.WriteLine(error);
-				}
-
-				string pcString = Debugger.GetNamedAddress(_context, decodeResult.ResultObject.BaseAddress);
-				Console.WriteLine(
-					$"Instruction: {decodeResult.ResultObject} at {pcString}"
-				);
-				Console.WriteLine($"Registers: {_context.GetStandardRegisterDisplayString()}");
-				_context.Paused = true;
-			}
-
-			if (_context.LogExecution)
-			{
-				Console.WriteLine();
-				Console.WriteLine($"Executed: {decodeResult.ResultObject}");
-
-				Result<DecodedOperation> nextOperation = _context.Cpu.Decode();
-				if (nextOperation.IsSuccess)
-				{
-					string pcString = Debugger.GetNamedAddress(_context, decodeResult.ResultObject.BaseAddress);
-					Console.WriteLine(
-						$"Next Operation: {nextOperation.ResultObject} at {pcString}"
-					);
-				}
-				else
-				{
-					Console.WriteLine("Not a valid instruction.");
-				}
-
-				Console.WriteLine(_context.GetStandardRegisterDisplayString());
-				Console.WriteLine();
-			}
+			Result instructionResult = StepInstruction();
+			result.Combine(instructionResult);
 
 			if (_context.Paused)
 			{
 				break;
 			}
-
-			result.Combine(instructionResult);
 		}
 
 		return result;
+	}
+
+	private Result StepInstruction()
+	{
+		Result result = new();
+
+		Result<DecodedOperation> decodeResult = _context.Cpu.Decode();
+		result.Combine(decodeResult);
+
+		_context.CurrentOperation = decodeResult.ResultObject;
+
+		int cyclesUsed = decodeResult.ResultObject.FetchCycles;
+
+		if (decodeResult.IsSuccess)
+		{
+			Result<int> executeResult = _context.Cpu.Execute(decodeResult.ResultObject);
+			result.Combine(executeResult);
+
+			cyclesUsed = executeResult.ResultObject;
+		}
+
+		if (cyclesUsed == 0)
+		{
+			cyclesUsed = 4;
+		}
+
+		_context.CurrentFrameCyclesRemaining -= cyclesUsed;
+
+		if (!result.IsSuccess)
+		{
+			LogInstructionError(decodeResult);
+			_context.Paused = true;
+
+			return result;
+		}
+
+		if (_context.LogExecution)
+		{
+			LogInstruction(decodeResult.ResultObject);
+		}
+
+		return result;
+	}
+
+	private void LogInstructionError(Result<DecodedOperation> decodeResult)
+	{
+		Console.WriteLine();
+
+		foreach (Result.Error error in decodeResult.Errors)
+		{
+			Console.WriteLine(error);
+		}
+
+		string pcString = Debugger.GetNamedAddress(_context, decodeResult.ResultObject.BaseAddress);
+
+		Console.WriteLine($"Instruction: {decodeResult.ResultObject} at {pcString}");
+
+		Console.WriteLine($"Registers: {_context.GetStandardRegisterDisplayString()}");
+	}
+
+	private void LogInstruction(DecodedOperation operation)
+	{
+		Console.WriteLine();
+		Console.WriteLine($"Executed: {operation}");
+
+		Result<DecodedOperation> nextOperation = _context.Cpu.Decode();
+
+		if (!nextOperation.IsSuccess)
+		{
+			Console.WriteLine("Not a valid instruction.");
+		}
+		else
+		{
+			string pcString = Debugger.GetNamedAddress(_context, nextOperation.ResultObject.BaseAddress);
+
+			Console.WriteLine($"Next Operation: {nextOperation.ResultObject} at {pcString}");
+		}
+
+		Console.WriteLine(_context.GetStandardRegisterDisplayString());
+		Console.WriteLine();
 	}
 }
