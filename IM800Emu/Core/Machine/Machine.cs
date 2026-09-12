@@ -25,9 +25,9 @@ public class Machine
 		RAMDevice ramDevice = new(512 * 1024);
 		RAMDevice vramDevice = new(64 * 1024);
 
-		_context.MemoryBus.AddDevice(romDevice, Constants.MemoryBaseWaitStates, 0x000000, 0x200000);
-		_context.MemoryBus.AddDevice(ramDevice, Constants.MemoryBaseWaitStates, 0x200000, 0x200000);
-		_context.MemoryBus.AddDevice(vramDevice, Constants.MemoryBaseWaitStates, 0x400000, 0x200000);
+		_context.MemoryBus.AddDevice(romDevice, Config.MemoryBaseWaitStates, 0x000000, 0x200000);
+		_context.MemoryBus.AddDevice(ramDevice, Config.MemoryBaseWaitStates, 0x200000, 0x200000);
+		_context.MemoryBus.AddDevice(vramDevice, Config.MemoryBaseWaitStates, 0x400000, 0x200000);
 
 		// IO Map:
 		// 0x00-0x03: UART
@@ -36,9 +36,9 @@ public class Machine
 		ControllerDevice controller = new();
 		_videoDevice = new VideoDevice(vramDevice);
 
-		_context.IoBus.AddDevice(uart, Constants.IOBaseWaitStates, 0, 4);
-		_context.IoBus.AddDevice(controller, Constants.IOBaseWaitStates, 4, 4);
-		_context.IoBus.AddDevice(_videoDevice, Constants.IOBaseWaitStates, 8, 4);
+		_context.IoBus.AddDevice(uart, Config.IOBaseWaitStates, 0, 4);
+		_context.IoBus.AddDevice(controller, Config.IOBaseWaitStates, 4, 4);
+		_context.IoBus.AddDevice(_videoDevice, Config.IOBaseWaitStates, 8, 4);
 
 		_context.InterruptBus.AddDevice(_videoDevice, 1);
 

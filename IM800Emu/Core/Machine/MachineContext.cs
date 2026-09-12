@@ -7,7 +7,7 @@ namespace IM800Emu.Core.Machine;
 // Used to share context between emulator and debugger
 public class MachineContext
 {
-	public readonly int CyclesPerFrame = Constants.CpuSpeedHz / Constants.TargetFramerate;
+	public readonly int CyclesPerFrame = Config.CpuSpeedHz / Constants.TargetFramerate;
 	private Func<MachineContext, string>? _getFullRegisterDisplayString;
 	private Func<MachineContext, string>? _getStandardRegisterDisplayString;
 	private Action<MachineContext, uint, uint>? _handleBreakpointInstruction;

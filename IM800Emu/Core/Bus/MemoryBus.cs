@@ -144,7 +144,7 @@ public class MemoryBus
 	{
 		MemoryOperation resultObject = new()
 		{
-			Cycles = Constants.MemoryBaseWaitStates
+			Cycles = Config.MemoryBaseWaitStates
 		};
 
 		Result<MemoryOperation> result = new(resultObject);
@@ -186,7 +186,7 @@ public class MemoryBus
 	{
 		MemoryOperation resultObject = new()
 		{
-			Cycles = Constants.MemoryBaseWaitStates
+			Cycles = Config.MemoryBaseWaitStates
 		};
 
 		Result<MemoryOperation> result = new(resultObject);
