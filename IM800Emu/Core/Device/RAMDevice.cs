@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace IM800Emu.Core.Device;
 
-internal class RAMDevice : IMemoryDevice
+public class RAMDevice : IMemoryDevice
 {
 	private readonly byte[] _data;
 	private readonly bool _readOnly;

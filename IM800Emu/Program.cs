@@ -78,8 +78,7 @@ internal class Program
 
 			Result result = machine.StepFrame();
 
-			//Texture2D texture = Raylib.LoadTextureFromImage(machine.Frame);
-			Texture2D texture = new();
+			Texture2D texture = Raylib.LoadTextureFromImage(machine.GetFrame());
 
 			float scaleX = Raylib.GetScreenWidth() / (float)texture.Width;
 			float scaleY = Raylib.GetScreenHeight() / (float)texture.Height;

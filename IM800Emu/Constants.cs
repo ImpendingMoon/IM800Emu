@@ -153,6 +153,11 @@ public static class Constants
 		EQU
 	}
 
+	public enum VideoMode
+	{
+		Bitmap320x200 = 0,
+	}
+
 	public static readonly int DwordALUCost = 1;
 	public static readonly int CpuSpeedHz = 4000000;
 	public static readonly int TargetFramerate = 60;
@@ -160,4 +165,6 @@ public static class Constants
 	public static readonly int IOBaseWaitStates = 4;
 	public static readonly int WindowWidth = 320;
 	public static readonly int WindowHeight = 200;
+	public static readonly int VsyncInterruptNumber = 10;
+	public static readonly uint RelativeColorPaletteAddress = 0xFA00;
 }

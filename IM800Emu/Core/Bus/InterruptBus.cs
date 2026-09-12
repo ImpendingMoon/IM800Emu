@@ -12,7 +12,7 @@ public class InterruptBus
 	/// <param name="priority">Priority in the daisy-chain. Lower values are higher priority.</param>
 	/// <param name="device">Device to attach</param>
 	/// <exception cref="ArgumentException">If an existing device already uses this priority.</exception>
-	public void AttachDevice(IInterruptingDevice device, int priority)
+	public void AddDevice(IInterruptingDevice device, int priority)
 	{
 		for (int i = 0; i < _devices.Count; i++)
 		{

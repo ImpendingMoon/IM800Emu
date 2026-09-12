@@ -1,12 +1,14 @@
 using IM800Emu.Core.CPU;
 using IM800Emu.Core.Device;
 using IM800Emu.Core.IM800Debug;
+using Raylib_cs;
 
 namespace IM800Emu.Core.Machine;
 
 public class Machine
 {
 	private readonly MachineContext _context;
+	private readonly VideoDevice _videoDevice;
 
 	public Machine(byte[] startupRom, List<Symbol> symbols)
 	{
@@ -18,20 +20,27 @@ public class Machine
 		// Memory Map:
 		// 0x000000-0x1FFFFF: ROM (whatever the program has)
 		// 0x200000-0x3FFFFF: RAM (512k)
-		// 0x400000-0x5FFFFF: VRAM (amount tbd)
+		// 0x400000-0x5FFFFF: VRAM (64k)
 		RAMDevice romDevice = new(startupRom, true);
-		RAMDevice ramDevice = new(0x80000);
+		RAMDevice ramDevice = new(512 * 1024);
+		RAMDevice vramDevice = new(64 * 1024);
 
 		_context.MemoryBus.AddDevice(romDevice, Constants.MemoryBaseWaitStates, 0x000000, 0x200000);
 		_context.MemoryBus.AddDevice(ramDevice, Constants.MemoryBaseWaitStates, 0x200000, 0x200000);
+		_context.MemoryBus.AddDevice(vramDevice, Constants.MemoryBaseWaitStates, 0x400000, 0x200000);
 
 		// IO Map:
 		// 0x00-0x03: UART
 		// 0x04-0x08: Controller
 		ConsoleDevice uart = new(_context);
-		_context.IoBus.AddDevice(uart, Constants.IOBaseWaitStates, 0, uart.Length);
 		ControllerDevice controller = new();
+		_videoDevice = new VideoDevice(vramDevice);
+
+		_context.IoBus.AddDevice(uart, Constants.IOBaseWaitStates, 0, 4);
 		_context.IoBus.AddDevice(controller, Constants.IOBaseWaitStates, 4, 4);
+		_context.IoBus.AddDevice(_videoDevice, Constants.IOBaseWaitStates, 8, 4);
+
+		_context.InterruptBus.AddDevice(_videoDevice, 1);
 
 		Result resetResult = _context.Cpu.Reset();
 
@@ -39,6 +48,11 @@ public class Machine
 		{
 			Console.WriteLine(error);
 		}
+	}
+
+	public Image GetFrame()
+	{
+		return _videoDevice.GetFrame();
 	}
 
 	public Result StepFrame()
