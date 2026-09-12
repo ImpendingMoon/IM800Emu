@@ -1,4 +1,4 @@
-namespace IM800Emu.Core;
+namespace IM800Emu;
 
 /// <summary>
 ///     For actions where failure is an expected result.

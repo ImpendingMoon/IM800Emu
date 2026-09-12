@@ -25,8 +25,13 @@ public class Machine
 		_context.MemoryBus.AddDevice(romDevice, Constants.MemoryBaseWaitStates, 0x000000, 0x200000);
 		_context.MemoryBus.AddDevice(ramDevice, Constants.MemoryBaseWaitStates, 0x200000, 0x200000);
 
+		// IO Map:
+		// 0x00-0x03: UART
+		// 0x04-0x08: Controller
 		ConsoleDevice uart = new(_context);
 		_context.IoBus.AddDevice(uart, Constants.IOBaseWaitStates, 0, uart.Length);
+		ControllerDevice controller = new();
+		_context.IoBus.AddDevice(controller, Constants.IOBaseWaitStates, 4, 4);
 
 		Result resetResult = _context.Cpu.Reset();
 

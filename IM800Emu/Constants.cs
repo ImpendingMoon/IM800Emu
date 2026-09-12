@@ -1,4 +1,4 @@
-namespace IM800Emu.Core;
+namespace IM800Emu;
 
 public static class Constants
 {

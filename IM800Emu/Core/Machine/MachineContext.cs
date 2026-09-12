@@ -20,8 +20,8 @@ public class MachineContext
 
 	public MachineContext()
 	{
-		MemoryBus = new MemoryBus(Config.BusWidth);
-		IoBus = new MemoryBus(Config.BusWidth);
+		MemoryBus = new MemoryBus(Config.DataBusWidth);
+		IoBus = new MemoryBus(Config.DataBusWidth);
 		InterruptBus = new InterruptBus();
 		Cpu = new IM800(MemoryBus, IoBus, InterruptBus, HandleBreakpointInstruction);
 		Symbols = [];

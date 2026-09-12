@@ -1,4 +1,3 @@
-using IM800Emu.Core;
 using IM800Emu.Core.IM800Debug;
 using IM800Emu.Core.Machine;
 using Raylib_cs;
