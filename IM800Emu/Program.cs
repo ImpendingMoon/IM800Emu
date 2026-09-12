@@ -105,6 +105,10 @@ internal class Program
 			{
 				Thread.Sleep((int)sleepMs);
 			}
+			else
+			{
+				Console.WriteLine($"Running {-sleepMs} ms behind!");
+			}
 		}
 	}
 
