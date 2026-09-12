@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using IM800Emu.Core.Bus;
 
 namespace IM800Emu.Core.CPU;
@@ -47,9 +46,9 @@ public partial class IM800
 
 		Registers.ClearRegisters();
 		// Read reset vector
-		Result<MemoryOperation> resetVectorResult = _memoryBus.Read(0x00000000, Constants.DataSize.Dword);
+		MemoryResult resetVectorResult = _memoryBus.Read(0x00000000, Constants.DataSize.Dword);
 		result.Combine(resetVectorResult);
-		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, resetVectorResult.ResultObject.Data);
+		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, resetVectorResult.Data);
 
 		return result;
 	}
@@ -97,7 +96,7 @@ public partial class IM800
 		DecodedOperation resultObject = new() { BaseAddress = baseAddress, Length = 2 };
 		Result<DecodedOperation> decodeResult = new(resultObject);
 
-		Result<MemoryOperation> fetchResult = _memoryBus.Read(baseAddress, Constants.DataSize.Word);
+		MemoryResult fetchResult = _memoryBus.Read(baseAddress, Constants.DataSize.Word);
 
 		if (!fetchResult.IsSuccess)
 		{
@@ -105,10 +104,8 @@ public partial class IM800
 			return decodeResult;
 		}
 
-		Debug.Assert(fetchResult.ResultObject is not null);
-
-		decodeResult.ResultObject.InstructionWord = (ushort)fetchResult.ResultObject.Data;
-		decodeResult.ResultObject.FetchCycles = fetchResult.ResultObject.Cycles;
+		decodeResult.ResultObject.InstructionWord = (ushort)fetchResult.Data;
+		decodeResult.ResultObject.FetchCycles = fetchResult.Cycles;
 
 		byte groupSelector = (byte)(decodeResult.ResultObject.InstructionWord & 0b11);
 

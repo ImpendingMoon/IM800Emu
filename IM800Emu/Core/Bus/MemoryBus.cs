@@ -50,12 +50,11 @@ public class MemoryBus
 		_mappings.Add(newMapping);
 	}
 
-	public Result<MemoryOperation> Read(uint address, Constants.DataSize size)
+	public MemoryResult Read(uint address, Constants.DataSize size)
 	{
 		int bytesToRead = GetSizeInBytes(size);
 
-		MemoryOperation resultObject = new();
-		Result<MemoryOperation> result = new(resultObject);
+		MemoryResult result = new();
 
 		uint data = 0;
 		int offset = 0;
@@ -69,31 +68,29 @@ public class MemoryBus
 
 			Constants.DataSize transferDataSize = ToDataSize(transferSize);
 
-			Result<MemoryOperation> transfer = ReadBusTransaction(currentAddress, transferDataSize);
+			MemoryResult transfer = ReadBusTransaction(currentAddress, transferDataSize);
 
 			result.Combine(transfer);
-			resultObject.Cycles += transfer.ResultObject.Cycles;
+			result.Cycles += transfer.Cycles;
 
-			data |= transfer.ResultObject.Data << (offset * 8);
+			data |= transfer.Data << (offset * 8);
 
 			offset += transferSize;
 		}
 
-		resultObject.Data = data;
+		result.Data = data;
 
 		return result;
 	}
 
-	public Result<MemoryOperation> Write(uint address, Constants.DataSize size, uint data)
+	public MemoryResult Write(uint address, Constants.DataSize size, uint data)
 	{
 		int bytesToWrite = GetSizeInBytes(size);
 
-		MemoryOperation resultObject = new()
+		MemoryResult result = new()
 		{
 			Data = data
 		};
-
-		Result<MemoryOperation> result = new(resultObject);
 
 		int offset = 0;
 
@@ -108,10 +105,11 @@ public class MemoryBus
 
 			uint transferData = ExtractBytes(data, offset, transferSize);
 
-			Result<MemoryOperation> transfer = WriteBusTransaction(currentAddress, transferDataSize, transferData);
+			MemoryResult transfer = WriteBusTransaction(currentAddress, transferDataSize, transferData);
 
 			result.Combine(transfer);
-			resultObject.Cycles += transfer.ResultObject.Cycles;
+
+			result.Cycles += transfer.Cycles;
 
 			offset += transferSize;
 		}
@@ -140,95 +138,66 @@ public class MemoryBus
 		return 1;
 	}
 
-	private Result<MemoryOperation> ReadBusTransaction(uint address, Constants.DataSize size)
+	private MemoryResult ReadBusTransaction(uint address, Constants.DataSize size)
 	{
-		MemoryOperation resultObject = new()
+		MemoryResult result = new()
 		{
 			Cycles = Config.MemoryBaseWaitStates
 		};
 
-		Result<MemoryOperation> result = new(resultObject);
+		DeviceMapping? mapping = FindDeviceMapping(address);
 
-		Result<DeviceMapping?> findResult = FindDeviceMapping(address);
-
-		result.Combine(findResult);
-
-		if (findResult.ResultObject is null)
+		if (mapping is null)
 		{
-			// Open bus. Return all ones.
-			resultObject.Data = size switch
-			{
-				Constants.DataSize.Byte => 0xFF,
-				Constants.DataSize.Word => 0xFFFF,
-				Constants.DataSize.Dword => 0xFFFFFFFF,
-				_ => throw new ArgumentException($"invalid transaction size {size}", nameof(size))
-			};
-
+			result.AddError(nameof(MemoryBus), $"no device mapped at address 0x{address:X}");
+			result.Data = Constants.OpenBusValue;
 			return result;
 		}
 
-		DeviceMapping mapping = findResult.ResultObject;
-
 		uint effectiveAddress = address - mapping.BaseAddress;
 
-		Result<uint?> readResult = mapping.Device.Read(effectiveAddress, size);
+		result.Data = mapping.Device.Read(effectiveAddress, size);
 
-		result.Combine(readResult);
-
-		resultObject.Data = readResult.ResultObject ?? 0xFFFFFFFF;
-
-		resultObject.Cycles = mapping.WaitStates;
+		result.Cycles = mapping.WaitStates;
 
 		return result;
 	}
 
-	private Result<MemoryOperation> WriteBusTransaction(uint address, Constants.DataSize size, uint data)
+	private MemoryResult WriteBusTransaction(uint address, Constants.DataSize size, uint data)
 	{
-		MemoryOperation resultObject = new()
+		MemoryResult result = new()
 		{
 			Cycles = Config.MemoryBaseWaitStates
 		};
 
-		Result<MemoryOperation> result = new(resultObject);
+		DeviceMapping? mapping = FindDeviceMapping(address);
 
-		Result<DeviceMapping?> findResult = FindDeviceMapping(address);
-
-		result.Combine(findResult);
-
-		if (findResult.ResultObject is null)
+		if (mapping is null)
 		{
+			result.AddError(nameof(MemoryBus), $"no device mapped at address 0x{address:X}");
 			return result;
 		}
 
-		DeviceMapping mapping = findResult.ResultObject;
-
 		uint effectiveAddress = address - mapping.BaseAddress;
 
-		Result writeResult = mapping.Device.Write(effectiveAddress, size, data);
+		mapping.Device.Write(effectiveAddress, size, data);
 
-		result.Combine(writeResult);
-
-		resultObject.Cycles = mapping.WaitStates;
+		result.Cycles = mapping.WaitStates;
 
 		return result;
 	}
 
-	private Result<DeviceMapping?> FindDeviceMapping(uint address)
+	private DeviceMapping? FindDeviceMapping(uint address)
 	{
-		Result<DeviceMapping?> result = new(null);
+		DeviceMapping? result = null;
 
 		foreach (DeviceMapping mapping in _mappings)
 		{
 			if (address >= mapping.BaseAddress && address <= mapping.MaxAddress)
 			{
-				result.ResultObject = mapping;
+				result = mapping;
 				break;
 			}
-		}
-
-		if (result.ResultObject is null)
-		{
-			result.AddError(nameof(MemoryBus), $"no device mapped at address 0x{address:X}");
 		}
 
 		return result;

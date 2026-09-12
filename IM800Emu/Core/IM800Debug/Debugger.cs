@@ -353,11 +353,11 @@ public static class Debugger
 					break;
 				}
 
-				Result<MemoryOperation> readResult = context.MemoryBus.Read(current, Constants.DataSize.Byte);
+				MemoryResult readResult = context.MemoryBus.Read(current, Constants.DataSize.Byte);
 
 				if (readResult.IsSuccess)
 				{
-					byte value = (byte)readResult.ResultObject.Data;
+					byte value = (byte)readResult.Data;
 					sb.Append(value.ToString("X2"));
 					sb.Append(' ');
 					characters[j] = value >= 0x20 && value <= 0x7F ? (char)value : '.';

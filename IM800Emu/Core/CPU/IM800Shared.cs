@@ -23,10 +23,9 @@ public partial class IM800
 		};
 	}
 
-	private Result<MemoryOperation> ReadOperand(Operand operand)
+	private MemoryResult ReadOperand(Operand operand)
 	{
-		MemoryOperation memoryOperation = new();
-		Result<MemoryOperation> result = new(memoryOperation);
+		MemoryResult result = new();
 
 		if (operand.Indirect)
 		{
@@ -37,21 +36,20 @@ public partial class IM800
 		{
 			if (operand.Register != default)
 			{
-				memoryOperation.Data = Registers.Read(operand.Register, operand.DataSize);
+				result.Data = Registers.Read(operand.Register, operand.DataSize);
 			}
 			else
 			{
-				memoryOperation.Data = operand.Data;
+				result.Data = operand.Data;
 			}
 		}
 
 		return result;
 	}
 
-	private Result<MemoryOperation> WriteOperand(Operand operand, uint data)
+	private MemoryResult WriteOperand(Operand operand, uint data)
 	{
-		MemoryOperation memoryOperation = new();
-		Result<MemoryOperation> result = new(memoryOperation);
+		MemoryResult result = new();
 
 		if (operand.Indirect)
 		{

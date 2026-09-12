@@ -58,39 +58,27 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 		Raylib.UnloadImage(_blankDisplay);
 	}
 
-	public Result<uint?> Read(uint address, Constants.DataSize size)
+	public uint Read(uint address, Constants.DataSize size)
 	{
 		address = address % Length;
 
-		uint data = address switch
+		return address switch
 		{
 			0 => (uint)_currentMode,
 			1 => (uint)(_enableDisplay ? 1 : 0),
 			_ => 0,
 		};
-
-		return new(data);
 	}
 
-	public Result Write(uint address, Constants.DataSize size, uint value)
+	public void Write(uint address, Constants.DataSize size, uint value)
 	{
-		Result result = new();
-
 		address = address % Length;
 
 		switch (address)
 		{
 			case 0:
 			{
-				if (value != (uint)Constants.VideoMode.Bitmap320x200)
-				{
-					result.AddError(nameof(VideoDevice), $"Invalid video mode: {value}");
-				}
-				else
-				{
-					_currentMode = (Constants.VideoMode)value;
-				}
-
+				_currentMode = (Constants.VideoMode)value;
 				break;
 			}
 			case 1:
@@ -103,15 +91,9 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 				{
 					_enableDisplay = true;
 				}
-				else
-				{
-					result.AddError(nameof(VideoDevice), $"Enable Display write must be 0 or 1");
-				}
 				break;
 			}
 		}
-
-		return result;
 	}
 
 	public byte OnInterruptAcknowledge()
@@ -168,15 +150,8 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 			for (int x = 0; x < width; x++)
 			{
 				uint address = (uint)((y * width) + x);
-				Result<uint?> readResult = _vram.Read(address, Constants.DataSize.Byte);
+				byte index = (byte)_vram.Read(address, Constants.DataSize.Byte);
 
-				if (!readResult.IsSuccess || readResult.ResultObject is null)
-				{
-					Console.Error.WriteLine(readResult);
-					continue;
-				}
-
-				byte index = (byte)readResult.ResultObject.Value;
 				Color color = GetColorFromPalette(index);
 
 				Raylib.ImageDrawPixel(ref _display, x, y, color);
@@ -187,17 +162,10 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 	private Color GetColorFromPalette(byte index)
 	{
 		uint address = (uint)(Constants.RelativeColorPaletteAddress + (index * 4));
-		Result<uint?> readResult = _vram.Read(address, Constants.DataSize.Dword);
-
-		if (!readResult.IsSuccess || readResult.ResultObject is null)
-		{
-			Console.Error.WriteLine(readResult);
-			return Color.Pink;
-		}
+		uint rgb = _vram.Read(address, Constants.DataSize.Dword);
 
 		// Colors are stored in RAM as [Red, Green, Blue, Unused], then read as little-endian dword
 		// Break out components and turn them into a Raylib color
-		uint rgb = readResult.ResultObject.Value;
 		byte red = (byte)((rgb >> 0) & 0xFF);
 		byte green = (byte)((rgb >> 8) & 0xFF);
 		byte blue = (byte)((rgb >> 16) & 0xFF);

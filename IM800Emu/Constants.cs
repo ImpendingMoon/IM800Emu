@@ -164,4 +164,5 @@ public static class Constants
 	public static readonly int WindowHeight = 200;
 	public static readonly int VsyncInterruptNumber = 10;
 	public static readonly uint RelativeColorPaletteAddress = 0xFA00;
+	public static readonly uint OpenBusValue = 0xFFFFFFFF;
 }
