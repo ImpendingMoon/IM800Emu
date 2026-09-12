@@ -99,16 +99,19 @@ internal class Program
 			Raylib.UnloadTexture(texture);
 
 			double elapsedMs = stopwatch.ElapsedMilliseconds;
-			double sleepMs = frameIntervalMs - elapsedMs;
 
-			if (sleepMs > 0)
-			{
-				Thread.Sleep((int)sleepMs);
-			}
-			else
-			{
-				Console.WriteLine($"Running {-sleepMs} ms behind!");
-			}
+			Console.WriteLine($"Frame took {elapsedMs} ms");
+
+			//double sleepMs = frameIntervalMs - elapsedMs;
+
+			//if (sleepMs > 0)
+			//{
+			//	Thread.Sleep((int)sleepMs);
+			//}
+			//else
+			//{
+			//	Console.WriteLine($"Running {-sleepMs} ms behind!");
+			//}
 		}
 	}
 
