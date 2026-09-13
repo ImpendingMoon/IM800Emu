@@ -22,6 +22,11 @@ public class RAMDevice : IMemoryDevice
 
 	public uint Length => (uint)_data.Length;
 
+	internal Span<byte> AsSpan()
+	{
+		return _data.AsSpan();
+	}
+
 	public uint Read(uint address, Constants.DataSize size)
 	{
 		address %= (uint)_data.Length;

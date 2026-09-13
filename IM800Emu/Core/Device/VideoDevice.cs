@@ -12,6 +12,7 @@ namespace IM800Emu.Core.Device;
 public class VideoDevice : IMemoryDevice, IInterruptingDevice
 {
 	private readonly RAMDevice _vram;
+	private readonly Color[] _colorPalette = new Color[256];
 	private bool _enableDisplay;
 	private Constants.VideoMode _currentMode;
 	private Image _display;
@@ -133,10 +134,11 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 	/// This device will be updated to draw the screen in step with the CPU so we can accurately emulate access timing
 	/// and HSYNC/VSYNC interrupts.
 	/// </summary>
-	private void RenderBitmap320x200Mode()
+	private unsafe void RenderBitmap320x200Mode()
 	{
 		const int width = 320;
 		const int height = 200;
+		ReadOnlySpan<byte> vram = _vram.AsSpan();
 
 		if (_display.Width != width || _display.Height != height)
 		{
@@ -144,31 +146,27 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 			_display = Raylib.GenImageColor(width, height, Color.Black);
 		}
 
-		// Linear row-major framebuffer starting at address 0
-		for (int y = 0; y < height; y++)
+		for (int i = 0; i < 256; i++)
 		{
-			for (int x = 0; x < width; x++)
-			{
-				uint address = (uint)((y * width) + x);
-				byte index = (byte)_vram.Read(address, Constants.DataSize.Byte);
+			_colorPalette[i] = GetColorFromPalette((byte)i, vram);
+		}
 
-				Color color = GetColorFromPalette(index);
+		Color* pixels = (Color*)_display.Data;
 
-				Raylib.ImageDrawPixel(ref _display, x, y, color);
-			}
+		for (int i = 0; i < width * height; i++)
+		{
+			pixels[i] = _colorPalette[vram[i]];
 		}
 	}
 
-	private Color GetColorFromPalette(byte index)
+	private Color GetColorFromPalette(byte index, ReadOnlySpan<byte> vram)
 	{
-		uint address = (uint)(Constants.RelativeColorPaletteAddress + (index * 4));
-		uint rgb = _vram.Read(address, Constants.DataSize.Dword);
+		int address = (int)(Constants.RelativeColorPaletteAddress + (index * 4));
 
-		// Colors are stored in RAM as [Red, Green, Blue, Unused], then read as little-endian dword
-		// Break out components and turn them into a Raylib color
-		byte red = (byte)((rgb >> 0) & 0xFF);
-		byte green = (byte)((rgb >> 8) & 0xFF);
-		byte blue = (byte)((rgb >> 16) & 0xFF);
+		// Colors are stored in RAM as [Red, Green, Blue, Unused]
+		byte red = vram[address + 0];
+		byte green = vram[address + 1];
+		byte blue = vram[address + 2];
 
 		return new Color(red, green, blue);
 	}
