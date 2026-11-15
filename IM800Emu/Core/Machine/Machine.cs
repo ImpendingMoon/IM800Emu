@@ -9,11 +9,13 @@ public class Machine
 {
 	private readonly MachineContext _context;
 	private readonly VideoDevice _videoDevice;
+	private readonly Debugger _debugger;
 
 	public Machine(byte[] startupRom, List<Symbol> symbols)
 	{
 		_context = new MachineContext();
-		LegacyDebugger.AttachDebugger(_context);
+
+		_debugger = new Debugger(_context);
 
 		_context.AddSymbols(symbols);
 
@@ -59,9 +61,9 @@ public class Machine
 	{
 		Result result = new();
 
-		if (_context.Paused)
+		if (_context.MachineAction != Constants.MachineAction.Continue)
 		{
-			_context.HandlePauseState();
+			_debugger.RunPauseState();
 		}
 
 		if (_context.CurrentFrameCyclesRemaining <= 0)
@@ -74,7 +76,7 @@ public class Machine
 			Result instructionResult = StepInstruction();
 			result.Combine(instructionResult);
 
-			if (_context.Paused)
+			if (_context.MachineAction != Constants.MachineAction.Continue)
 			{
 				break;
 			}
@@ -120,8 +122,7 @@ public class Machine
 
 		if (!result.IsSuccess)
 		{
-			LogInstructionError(decodeResult);
-			_context.Paused = true;
+			_context.MachineAction = Constants.MachineAction.Pause;
 
 			return result;
 		}
@@ -134,22 +135,6 @@ public class Machine
 		_context.Events.RaiseStepFinished();
 
 		return result;
-	}
-
-	private void LogInstructionError(Result<DecodedOperation> decodeResult)
-	{
-		Console.WriteLine();
-
-		foreach (Result.Error error in decodeResult.Errors)
-		{
-			Console.WriteLine(error);
-		}
-
-		string pcString = LegacyDebugger.GetNamedAddress(_context, decodeResult.ResultObject.BaseAddress);
-
-		Console.WriteLine($"Instruction: {decodeResult.ResultObject} at {pcString}");
-
-		Console.WriteLine($"Registers: {_context.GetStandardRegisterDisplayString()}");
 	}
 
 	private void LogInstruction(DecodedOperation operation)
@@ -165,12 +150,12 @@ public class Machine
 		}
 		else
 		{
-			string pcString = LegacyDebugger.GetNamedAddress(_context, nextOperation.ResultObject.BaseAddress);
+			string pcString = _debugger.GetNamedAddress(nextOperation.ResultObject.BaseAddress);
 
 			Console.WriteLine($"Next Operation: {nextOperation.ResultObject} at {pcString}");
 		}
 
-		Console.WriteLine(_context.GetStandardRegisterDisplayString());
+		Console.WriteLine(_debugger.GetStandardRegisterDisplayString());
 		Console.WriteLine();
 	}
 }

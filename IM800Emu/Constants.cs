@@ -9,7 +9,11 @@ public static class Constants
 		/// </summary>
 		Continue = 0,
 		/// <summary>
-		/// Cancel the current operation, early return
+		/// Finish the current operation, then pause
+		/// </summary>
+		Pause,
+		/// <summary>
+		/// Cancel the current operation via early return, then pause
 		/// </summary>
 		Cancel,
 	}

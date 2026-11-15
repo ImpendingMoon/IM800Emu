@@ -4,17 +4,17 @@ namespace IM800Emu.Core.Machine;
 
 public class MachineEvents
 {
-	public event EventHandler? BeforeMemoryRead;
-	public event EventHandler? BeforeMemoryWrite;
-	public event EventHandler? BeforeBadMemoryRead;
-	public event EventHandler? BeforeBadMemoryWrite;
+	public event EventHandler<BeforeMemoryReadArgs>? BeforeMemoryRead;
+	public event EventHandler<BeforeMemoryWriteArgs>? BeforeMemoryWrite;
+	public event EventHandler<BeforeBadMemoryReadArgs>? BeforeBadMemoryRead;
+	public event EventHandler<BeforeBadMemoryWriteArgs>? BeforeBadMemoryWrite;
 
-	public event EventHandler? BeforeInstructionFetch;
-	public event EventHandler? InvalidInstruction;
-	public event EventHandler? BkptInstruction;
+	public event EventHandler<BeforeInstructionFetchArgs>? BeforeInstructionFetch;
+	public event EventHandler<InvalidInstructionArgs>? InvalidInstruction;
+	public event EventHandler<BkptInstructionArgs>? BkptInstruction;
 
-	public event EventHandler? StepFinished;
-	public event EventHandler? FrameFinished;
+	public event EventHandler<StepFinishedArgs>? StepFinished;
+	public event EventHandler<FrameFinishedArgs>? FrameFinished;
 
 	internal void RaiseBeforeMemoryRead(uint address, Constants.DataSize dataSize, string deviceName)
 	{
@@ -47,7 +47,7 @@ public class MachineEvents
 			DataSize = dataSize,
 			DeviceName = deviceName,
 		};
-		BeforeMemoryRead?.Invoke(this, args);
+		BeforeBadMemoryRead?.Invoke(this, args);
 	}
 
 	internal void RaiseBeforeBadMemoryWrite(uint address, Constants.DataSize dataSize, uint value, string deviceName)
@@ -59,7 +59,7 @@ public class MachineEvents
 			Value = value,
 			DeviceName = deviceName,
 		};
-		BeforeMemoryWrite?.Invoke(this, args);
+		BeforeBadMemoryWrite?.Invoke(this, args);
 	}
 
 	internal void RaiseBeforeInstructionFetch(uint programCounter)

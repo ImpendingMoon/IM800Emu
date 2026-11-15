@@ -22,23 +22,15 @@ public partial class IM800
 
 	private bool _enableInterrupts;
 	private bool _halted;
-	private readonly Action<uint, uint> _handleBreakpointInstruction;
 	private int _interruptMode = 1;
 	private bool _pendingEnableInterrupts;
 
-	public IM800(
-		MemoryBus memoryBus,
-		MemoryBus ioBus,
-		InterruptBus interruptBus,
-		Action<uint, uint> handleBreakpointInstruction,
-		MachineContext context
-	)
+	public IM800(MemoryBus memoryBus, MemoryBus ioBus, InterruptBus interruptBus, MachineContext context)
 	{
 		Registers = new Registers();
 		_memoryBus = memoryBus;
 		_ioBus = ioBus;
 		_interruptBus = interruptBus;
-		_handleBreakpointInstruction = handleBreakpointInstruction;
 		_context = context;
 	}
 

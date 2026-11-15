@@ -3947,9 +3947,6 @@ public partial class IM800
 			return result;
 		}
 
-		uint code = operation.Destination.Data;
-		_handleBreakpointInstruction(operation.BaseAddress, code);
-
 		return result;
 	}
 

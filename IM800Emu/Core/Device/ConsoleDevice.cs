@@ -134,7 +134,7 @@ internal class ConsoleDevice : IMemoryDevice
 			}
 			else if (key.Key == ConsoleKey.P)
 			{
-				_context.Paused = true;
+				_context.MachineAction = Constants.MachineAction.Pause;
 				return 0x00;
 			}
 		}
