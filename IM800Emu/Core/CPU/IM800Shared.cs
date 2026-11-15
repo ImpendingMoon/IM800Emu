@@ -60,7 +60,7 @@ public partial class IM800
 		{
 			if (operand.Register == default)
 			{
-				result.AddError("WriteOperand", "tried to write back to an immediate operand");
+				// Error event already called by decoder
 			}
 			else
 			{

@@ -8,8 +8,6 @@ namespace IM800Emu.Core.CPU;
 /// </summary>
 public partial class IM800
 {
-	private static readonly string _decodeErrorName = "Decode";
-	private static readonly string _executeErrorName = "Execute";
 	private readonly InterruptBus _interruptBus;
 	private readonly MemoryBus _ioBus;
 	private readonly MemoryBus _memoryBus;
@@ -36,46 +34,41 @@ public partial class IM800
 
 	public Registers Registers { get; }
 
-	public Result Reset()
+	public void Reset()
 	{
-		Result result = new();
-
 		Registers.ClearRegisters();
 		// Read reset vector
 		MemoryResult resetVectorResult = _memoryBus.Read(0x00000000, Constants.DataSize.Dword);
-		result.Combine(resetVectorResult);
 		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, resetVectorResult.Data);
-
-		return result;
 	}
 
 	/// <summary>
 	///     Decodes the next operation to execute. Includes interrupts, halt states, and the instruction at PC.
 	/// </summary>
 	/// <returns></returns>
-	public Result<DecodedOperation> Decode()
+	public DecodedOperation Decode()
 	{
 		if (_interruptBus.IsNonMaskableInterruptPending())
 		{
 			DecodedOperation operation = new() { Operation = Constants.Operation.NonMaskableInterrupt };
-			return new Result<DecodedOperation>(operation);
+			return operation;
 		}
 
 		if (_interruptBus.IsInterruptPending() && Registers.GetFlag(Constants.FlagMask.EnableInterrupts))
 		{
 			DecodedOperation operation = new() { Operation = Constants.Operation.Interrupted };
-			return new Result<DecodedOperation>(operation);
+			return operation;
 		}
 
 		if (_currentBlockOperation is not null)
 		{
-			return new Result<DecodedOperation>(_currentBlockOperation);
+			return _currentBlockOperation;
 		}
 
 		if (_halted)
 		{
 			DecodedOperation operation = new() { Operation = Constants.Operation.Halted };
-			return new Result<DecodedOperation>(operation);
+			return operation;
 		}
 
 		uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
@@ -87,59 +80,57 @@ public partial class IM800
 	/// </summary>
 	/// <param name="baseAddress"></param>
 	/// <returns></returns>
-	public Result<DecodedOperation> DecodeAt(uint baseAddress)
+	public DecodedOperation DecodeAt(uint baseAddress)
 	{
-		DecodedOperation resultObject = new() { BaseAddress = baseAddress, Length = 2 };
-		Result<DecodedOperation> decodeResult = new(resultObject);
+		DecodedOperation operation = new() { BaseAddress = baseAddress, Length = 2 };
 
 		MemoryResult fetchResult = _memoryBus.Read(baseAddress, Constants.DataSize.Word);
-
-		if (!fetchResult.IsSuccess)
+		if (_context.CancelOperation)
 		{
-			decodeResult.Combine(fetchResult);
-			return decodeResult;
+			return operation;
 		}
 
-		decodeResult.ResultObject.InstructionWord = (ushort)fetchResult.Data;
-		decodeResult.ResultObject.FetchCycles = fetchResult.Cycles;
 
-		byte groupSelector = (byte)(decodeResult.ResultObject.InstructionWord & 0b11);
+		operation.InstructionWord = (ushort)fetchResult.Data;
+		operation.FetchCycles = fetchResult.Cycles;
+
+		byte groupSelector = (byte)(operation.InstructionWord & 0b11);
 
 		switch (groupSelector)
 		{
 			case 0b00:
 			{
-				DecodeFormatR(decodeResult);
+				DecodeFormatR(operation);
 				break;
 			}
 			case 0b01:
 			{
-				DecodeFormatRM(decodeResult);
+				DecodeFormatRM(operation);
 				break;
 			}
 			case 0b10:
 			{
-				byte subgroupSelector = (byte)((decodeResult.ResultObject.InstructionWord >> 2) & 0b11);
+				byte subgroupSelector = (byte)((operation.InstructionWord >> 2) & 0b11);
 				switch (subgroupSelector)
 				{
 					case 0b00:
 					{
-						DecodeFormatUR(decodeResult);
+						DecodeFormatUR(operation);
 						break;
 					}
 					case 0b01:
 					{
-						DecodeFormatUM(decodeResult);
+						DecodeFormatUM(operation);
 						break;
 					}
 					case 0b10:
 					{
-						DecodeFormatB(decodeResult);
+						DecodeFormatB(operation);
 						break;
 					}
 					case 0b11:
 					{
-						DecodeFormatM(decodeResult);
+						DecodeFormatM(operation);
 						break;
 					}
 				}
@@ -148,34 +139,29 @@ public partial class IM800
 			}
 			case 0b11:
 			{
-				byte subgroupSelector = (byte)((decodeResult.ResultObject.InstructionWord >> 2) & 0b11);
+				byte subgroupSelector = (byte)((operation.InstructionWord >> 2) & 0b11);
 				switch (subgroupSelector)
 				{
 					case 0b00:
 					{
-						DecodeFormatSB(decodeResult);
+						DecodeFormatSB(operation);
 						break;
 					}
 					case 0b01:
 					{
-						DecodeFormatBLK(decodeResult);
+						DecodeFormatBLK(operation);
 						break;
 					}
 					default:
 					{
 						_context.Events.RaiseInvalidInstruction(
-							decodeResult.ResultObject,
+							operation,
 							$"invalid special subgroup selector 0x{subgroupSelector:X2}"
 						);
 						if (_context.CancelOperation)
 						{
-							return decodeResult;
+							return operation;
 						}
-
-						decodeResult.AddError(
-							_decodeErrorName,
-							$"invalid special subgroup selector 0x{subgroupSelector:X2}"
-						);
 						break;
 					}
 				}
@@ -184,7 +170,7 @@ public partial class IM800
 			}
 		}
 
-		return decodeResult;
+		return operation;
 	}
 
 	/// <summary>
@@ -193,7 +179,7 @@ public partial class IM800
 	/// </summary>
 	/// <param name="operation"></param>
 	/// <returns>A result with the number of cycles taken to execute</returns>
-	public Result<int> Execute(DecodedOperation operation)
+	public int Execute(DecodedOperation operation)
 	{
 		uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 		pc += operation.Length;
@@ -208,7 +194,7 @@ public partial class IM800
 			_enableInterrupts = true;
 		}
 
-		Result<int> executeResult = operation.Operation switch
+		int executeResult = operation.Operation switch
 		{
 			Constants.Operation.Invalid => ExecuteInvalid(operation),
 			Constants.Operation.Halted => ExecuteHalted(operation),

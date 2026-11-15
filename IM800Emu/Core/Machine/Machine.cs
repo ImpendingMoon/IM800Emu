@@ -44,12 +44,7 @@ public class Machine
 
 		_context.InterruptBus.AddDevice(_videoDevice, 1);
 
-		Result resetResult = _context.Cpu.Reset();
-
-		foreach (Result.Error error in resetResult.Errors)
-		{
-			Console.WriteLine(error);
-		}
+		_context.Cpu.Reset();
 	}
 
 	public Image GetFrame()
@@ -57,10 +52,8 @@ public class Machine
 		return _videoDevice.GetFrame();
 	}
 
-	public Result StepFrame()
+	public void StepFrame()
 	{
-		Result result = new();
-
 		if (_context.MachineAction != Constants.MachineAction.Continue)
 		{
 			_debugger.RunPauseState();
@@ -73,8 +66,7 @@ public class Machine
 
 		while (_context.CurrentFrameCyclesRemaining > 0)
 		{
-			Result instructionResult = StepInstruction();
-			result.Combine(instructionResult);
+			StepInstruction();
 
 			if (_context.MachineAction != Constants.MachineAction.Continue)
 			{
@@ -83,35 +75,28 @@ public class Machine
 		}
 
 		_context.Events.RaiseFrameFinished();
-
-		return result;
 	}
 
-	private Result StepInstruction()
+	private void StepInstruction()
 	{
-		Result result = new();
-
 		uint pc = _context.Cpu.Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 		_context.Events.RaiseBeforeInstructionFetch(pc);
 		if (_context.CancelOperation)
 		{
-			return result;
+			return;
 		}
 
-		Result<DecodedOperation> decodeResult = _context.Cpu.Decode();
-		result.Combine(decodeResult);
+		DecodedOperation decodeResult = _context.Cpu.Decode();
+		if (_context.CancelOperation)
+		{ return; }
+		_context.CurrentOperation = decodeResult;
 
-		_context.CurrentOperation = decodeResult.ResultObject;
+		int cyclesUsed = decodeResult.FetchCycles;
 
-		int cyclesUsed = decodeResult.ResultObject.FetchCycles;
 
-		if (decodeResult.IsSuccess)
-		{
-			Result<int> executeResult = _context.Cpu.Execute(decodeResult.ResultObject);
-			result.Combine(executeResult);
-
-			cyclesUsed = executeResult.ResultObject;
-		}
+		cyclesUsed = _context.Cpu.Execute(decodeResult);
+		if (_context.CancelOperation)
+		{ return; }
 
 		if (cyclesUsed == 0)
 		{
@@ -120,42 +105,11 @@ public class Machine
 
 		_context.CurrentFrameCyclesRemaining -= cyclesUsed;
 
-		if (!result.IsSuccess)
-		{
-			_context.MachineAction = Constants.MachineAction.Pause;
-
-			return result;
-		}
-
-		if (_context.LogExecution)
-		{
-			LogInstruction(decodeResult.ResultObject);
-		}
-
 		_context.Events.RaiseStepFinished();
-
-		return result;
 	}
 
 	private void LogInstruction(DecodedOperation operation)
 	{
-		Console.WriteLine();
-		Console.WriteLine($"Executed: {operation}");
 
-		Result<DecodedOperation> nextOperation = _context.Cpu.Decode();
-
-		if (!nextOperation.IsSuccess)
-		{
-			Console.WriteLine("Not a valid instruction.");
-		}
-		else
-		{
-			string pcString = _debugger.GetNamedAddress(nextOperation.ResultObject.BaseAddress);
-
-			Console.WriteLine($"Next Operation: {nextOperation.ResultObject} at {pcString}");
-		}
-
-		Console.WriteLine(_debugger.GetStandardRegisterDisplayString());
-		Console.WriteLine();
 	}
 }

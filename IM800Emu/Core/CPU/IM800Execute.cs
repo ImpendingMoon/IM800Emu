@@ -5,9 +5,9 @@ namespace IM800Emu.Core.CPU;
 
 public partial class IM800
 {
-	private Result<int> ExecuteInvalid(DecodedOperation operation)
+	private int ExecuteInvalid(DecodedOperation operation)
 	{
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		_context.Events.RaiseInvalidInstruction(
 			operation,
@@ -15,20 +15,19 @@ public partial class IM800
 		);
 		if (_context.CancelOperation)
 		{
-			return result;
+			return cycles;
 		}
 
-		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteHalted(DecodedOperation operation)
+	private int ExecuteHalted(DecodedOperation operation)
 	{
-		Result<int> result = new(4);
-		return result;
+		int cycles = 4;
+		return cycles;
 	}
 
-	private Result<int> ExecuteInterrupted(DecodedOperation operation)
+	private int ExecuteInterrupted(DecodedOperation operation)
 	{
 		Registers.SetFlag(Constants.FlagMask.EnableInterrupts, false);
 		Registers.SetFlag(Constants.FlagMask.EnableInterruptsSave, false);
@@ -43,7 +42,7 @@ public partial class IM800
 		return InternalServiceInterrupt(interruptNumber);
 	}
 
-	private Result<int> ExecuteNonMaskableInterrupt(DecodedOperation operation)
+	private int ExecuteNonMaskableInterrupt(DecodedOperation operation)
 	{
 		_interruptBus.AcknowledgeNonMaskableInterrupt();
 
@@ -54,115 +53,150 @@ public partial class IM800
 		return InternalServiceInterrupt(2);
 	}
 
-	private Result<int> ExecuteLD(DecodedOperation operation)
+	private int ExecuteLD(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
 		// Dest <- Source
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult writeDestResult = WriteOperand(
 			operation.Destination,
 			readSourceResult.Data
 		);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
 
-		return result;
+		cycles += writeDestResult.Cycles;
+
+		return cycles;
 	}
 
-	private Result<int> ExecuteEX(DecodedOperation operation)
+	private int ExecuteEX(DecodedOperation operation)
 	{
 		// Dest <-> Source
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += readDestResult.Cycles;
 
 		MemoryResult writeSourceResult = WriteOperand(
 			operation.Source,
 			readDestResult.Data
 		);
-		result.Combine(writeSourceResult);
-		result.ResultObject += writeSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += writeSourceResult.Cycles;
 
 		MemoryResult writeDestResult = WriteOperand(
 			operation.Destination,
 			readSourceResult.Data
 		);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecutePUSH(DecodedOperation operation)
+	private int ExecutePUSH(DecodedOperation operation)
 	{
 		// sp <- sp - 4
 		// [sp] <- dest
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Destination);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult pushResult = InternalPush(readSourceResult.Data);
-		result.Combine(pushResult);
-		result.ResultObject += pushResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += pushResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecutePOP(DecodedOperation operation)
+	private int ExecutePOP(DecodedOperation operation)
 	{
 		// dest <- [sp]
 		// sp <- sp + 4
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult popResult = InternalPop();
-		result.Combine(popResult);
-		result.ResultObject += popResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += popResult.Cycles;
 
 		MemoryResult writeDestinationResult = WriteOperand(
 			operation.Destination,
 			popResult.Data
 		);
-		result.Combine(writeDestinationResult);
-		result.ResultObject += writeDestinationResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += writeDestinationResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteEXH(DecodedOperation operation)
+	private int ExecuteEXH(DecodedOperation operation)
 	{
 		// swap high and low halves of the operand
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readDestinationResult = ReadOperand(operation.Destination);
-		result.Combine(readDestinationResult);
-		result.ResultObject += readDestinationResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += readDestinationResult.Cycles;
 
 		uint data = readDestinationResult.Data;
 		switch (operation.Destination.DataSize)
@@ -183,7 +217,7 @@ public partial class IM800
 			{
 				uint temp = (data & 0xFFFF) << 16;
 				data = temp | ((data >> 16) & 0xFFFF);
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 				break;
 			}
 			default:
@@ -194,37 +228,45 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteEXH", $"invalid size for instruction EXH: {operation.Destination.DataSize}");
 				break;
 			}
 		}
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteESA(DecodedOperation operation)
+	private int ExecuteESA(DecodedOperation operation)
 	{
 		// extend, shift, add
 		// dest <- dest + extend(source << scale)
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += readDestResult.Cycles;
 
 		byte shiftAmount = operation.DataSize switch
 		{
@@ -242,17 +284,20 @@ public partial class IM800
 		uint data = readDestResult.Data + source;
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{
+			return cycles;
+		}
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteEXA(DecodedOperation operation)
+	private int ExecuteEXA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		if (operation.Destination.Register != default)
 		{
@@ -266,54 +311,56 @@ public partial class IM800
 			);
 			if (_context.CancelOperation)
 			{
-				return result;
+				return cycles;
 			}
 
-			result.AddError("ExecuteEXA", $"invalid operand for EXA: {operation.Destination}");
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteEXX(DecodedOperation operation)
+	private int ExecuteEXX(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		Registers.ExchangeWithAlternate(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
 		Registers.ExchangeWithAlternate(Constants.RegisterTarget.DE, Constants.DataSize.Dword);
 		Registers.ExchangeWithAlternate(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteEXI(DecodedOperation operation)
+	private int ExecuteEXI(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		Registers.ExchangeWithAlternate(Constants.RegisterTarget.IX, Constants.DataSize.Dword);
 		Registers.ExchangeWithAlternate(Constants.RegisterTarget.IY, Constants.DataSize.Dword);
 		Registers.ExchangeWithAlternate(Constants.RegisterTarget.SP, Constants.DataSize.Dword);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteIN_OUT(DecodedOperation operation)
+	private int ExecuteIN_OUT(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 		Debug.Assert(operation.Destination.Indirect ^ operation.Source.Indirect);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		// OUT
 		if (operation.Destination.Indirect)
 		{
 			MemoryResult readSourceResult = ReadOperand(operation.Source);
-			result.Combine(readSourceResult);
-			result.ResultObject += readSourceResult.Cycles;
+			if (_context.CancelOperation)
+			{
+				return cycles;
+			}
+			cycles += readSourceResult.Cycles;
 
 			uint port = GetEffectiveAddress(operation.Destination);
 			MemoryResult writePortResult = _ioBus.Write(
@@ -321,43 +368,50 @@ public partial class IM800
 				operation.DataSize,
 				readSourceResult.Data
 			);
-			result.Combine(writePortResult);
-			result.ResultObject += writePortResult.Cycles;
+			if (_context.CancelOperation)
+			{
+				return cycles;
+			}
+			cycles += writePortResult.Cycles;
 		}
 		// IN
 		else
 		{
 			uint port = GetEffectiveAddress(operation.Source);
 			MemoryResult readPortResult = _ioBus.Read(port, operation.DataSize);
-			result.Combine(readPortResult);
-			result.ResultObject += readPortResult.Cycles;
+			if (_context.CancelOperation)
+			{ return cycles; }
+			cycles += readPortResult.Cycles;
 
 			MemoryResult writeDestResult = WriteOperand(
 				operation.Destination,
 				readPortResult.Data
 			);
-			result.Combine(writeDestResult);
-			result.ResultObject += writeDestResult.Cycles;
+			if (_context.CancelOperation)
+			{ return cycles; }
+			cycles += writeDestResult.Cycles;
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteADD(DecodedOperation operation)
+	private int ExecuteADD(DecodedOperation operation)
 	{
 		// Dest <- Dest + Source
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -394,7 +448,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = readSourceResult.Data;
@@ -416,10 +470,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteADD", $"invalid size for instruction ADD: {operation.DataSize}");
 				break;
 			}
 		}
@@ -430,27 +483,30 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteADC(DecodedOperation operation)
+	private int ExecuteADC(DecodedOperation operation)
 	{
 		// Dest <- Dest + Source + Carry
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -495,7 +551,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = readSourceResult.Data;
@@ -521,10 +577,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteADC", $"invalid size for instruction ADC: {operation.DataSize}");
 				break;
 			}
 		}
@@ -535,26 +590,29 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
-		return result;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
+		return cycles;
 	}
 
-	private Result<int> ExecuteSUB(DecodedOperation operation)
+	private int ExecuteSUB(DecodedOperation operation)
 	{
 		// Dest <- Dest - Source
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -591,7 +649,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = readSourceResult.Data;
@@ -613,10 +671,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteSUB", $"invalid size for instruction SUB: {operation.DataSize}");
 				break;
 			}
 		}
@@ -627,26 +684,29 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
-		return result;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
+		return cycles;
 	}
 
-	private Result<int> ExecuteSBC(DecodedOperation operation)
+	private int ExecuteSBC(DecodedOperation operation)
 	{
 		// Dest <- Dest - Source
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -691,7 +751,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = readSourceResult.Data;
@@ -717,10 +777,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteSBC", $"invalid size for instruction SBC: {operation.DataSize}");
 				break;
 			}
 		}
@@ -731,26 +790,29 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
-		return result;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
+		return cycles;
 	}
 
-	private Result<int> ExecuteCP(DecodedOperation operation)
+	private int ExecuteCP(DecodedOperation operation)
 	{
 		// Dest - Source
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -787,7 +849,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = readSourceResult.Data;
@@ -809,10 +871,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteCP", $"invalid size for instruction CP: {operation.DataSize}");
 				break;
 			}
 		}
@@ -822,20 +883,21 @@ public partial class IM800
 		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteINC(DecodedOperation operation)
+	private int ExecuteINC(DecodedOperation operation)
 	{
 		// Dest <- Dest + 1
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -870,7 +932,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = 1;
@@ -891,10 +953,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteINC", $"invalid size for instruction INC: {operation.DataSize}");
 				break;
 			}
 		}
@@ -905,23 +966,25 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteDEC(DecodedOperation operation)
+	private int ExecuteDEC(DecodedOperation operation)
 	{
 		// Dest <- Dest - 1
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -956,7 +1019,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = 1;
@@ -977,10 +1040,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteDEC", $"invalid size for instruction DEC: {operation.DataSize}");
 				break;
 			}
 		}
@@ -991,22 +1053,24 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
-		return result;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
+		return cycles;
 	}
 
-	private Result<int> ExecuteNEG(DecodedOperation operation)
+	private int ExecuteNEG(DecodedOperation operation)
 	{
 		// Dest <- 0 - Dest
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1043,7 +1107,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = 0;
 				uint b = readDestResult.Data;
@@ -1065,10 +1129,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteNEG", $"invalid size for instruction NEG: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1079,22 +1142,24 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
-		return result;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
+		return cycles;
 	}
 
-	private Result<int> ExecuteEXT(DecodedOperation operation)
+	private int ExecuteEXT(DecodedOperation operation)
 	{
 		// Dest <- SignExtend(Dest, width / 2)
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 
@@ -1112,7 +1177,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				data = BitHelper.SignExtend(data, 16);
 				break;
@@ -1125,31 +1190,32 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteEXT", $"invalid size for instruction EXT: {operation.DataSize}");
 				break;
 			}
 		}
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
-		return result;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
+		return cycles;
 	}
 
-	private Result<int> ExecuteMLT(DecodedOperation operation)
+	private int ExecuteMLT(DecodedOperation operation)
 	{
 		// Dest <- Dest.Hi * Dest.Lo
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1162,8 +1228,8 @@ public partial class IM800
 				int multiplier = (int)((data >> 8) & 0xFF);
 
 				int cyclesPerIteration = 4; // Branch, Shift, Loop Overhead
-				result.ResultObject += cyclesPerIteration * 8; // 8 Iterations for 8*8 mult
-				result.ResultObject += BitHelper.NumberOfOnes((uint)multiplicand); // Roughly number of adds/subs needed
+				cycles += cyclesPerIteration * 8; // 8 Iterations for 8*8 mult
+				cycles += BitHelper.NumberOfOnes((uint)multiplicand); // Roughly number of adds/subs needed
 
 				data = (ushort)(multiplicand * multiplier);
 
@@ -1177,8 +1243,8 @@ public partial class IM800
 				int multiplier = (int)((data >> 16) & 0xFFFF);
 
 				int cyclesPerIteration = 4 * Constants.DwordALUCost; // Branch, Shift, Loop Overhead
-				result.ResultObject += cyclesPerIteration * 16; // 16 Iterations for 16*16 mult
-				result.ResultObject += BitHelper.NumberOfOnes((uint)multiplicand); // Roughly number of adds/subs needed
+				cycles += cyclesPerIteration * 16; // 16 Iterations for 16*16 mult
+				cycles += BitHelper.NumberOfOnes((uint)multiplicand); // Roughly number of adds/subs needed
 
 				data = (ushort)(multiplicand * multiplier);
 
@@ -1194,10 +1260,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteMLT", $"invalid size for instruction MLT: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1208,12 +1273,13 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
-		return result;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
+		return cycles;
 	}
 
-	private Result<int> ExecuteDIV(DecodedOperation operation)
+	private int ExecuteDIV(DecodedOperation operation)
 	{
 		// Quotient = Dest.Hi / Dest.Lo
 		// Remainder = Dest.Hi % Dest.Lo
@@ -1222,11 +1288,12 @@ public partial class IM800
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1239,7 +1306,7 @@ public partial class IM800
 				uint divisor = data & 0xFF;
 
 				// Decision
-				result.ResultObject += 1;
+				cycles += 1;
 				if (divisor == 0)
 				{
 					Registers.SetFlag(Constants.FlagMask.ParityOverflow, true);
@@ -1249,8 +1316,8 @@ public partial class IM800
 					Registers.SetFlag(Constants.FlagMask.ParityOverflow, false);
 
 					int cyclesPerIteration = 4; // Branch, Shift, Loop Overhead
-					result.ResultObject += cyclesPerIteration * 8; // 8 Iterations for 8/8 div
-					result.ResultObject += BitHelper.NumberOfOnes(dividend); // Roughly number of adds/subs needed
+					cycles += cyclesPerIteration * 8; // 8 Iterations for 8/8 div
+					cycles += BitHelper.NumberOfOnes(dividend); // Roughly number of adds/subs needed
 
 					data = (byte)(dividend / divisor); // Quotient in lower half
 					data |= (uint)(byte)(dividend % divisor) << 8; // Remainder in upper half
@@ -1264,7 +1331,7 @@ public partial class IM800
 				uint divisor = data & 0xFFFF;
 
 				// Decision
-				result.ResultObject += 1;
+				cycles += 1;
 				if (divisor == 0)
 				{
 					Registers.SetFlag(Constants.FlagMask.ParityOverflow, true);
@@ -1274,8 +1341,8 @@ public partial class IM800
 					Registers.SetFlag(Constants.FlagMask.ParityOverflow, false);
 
 					int cyclesPerIteration = 4 * Constants.DwordALUCost; // Branch, Shift, Loop Overhead
-					result.ResultObject += cyclesPerIteration * 16; // 16 Iterations for 16/16 div
-					result.ResultObject += BitHelper.NumberOfOnes(dividend); // Roughly number of adds/subs needed
+					cycles += cyclesPerIteration * 16; // 16 Iterations for 16/16 div
+					cycles += BitHelper.NumberOfOnes(dividend); // Roughly number of adds/subs needed
 
 					data = (ushort)(dividend / divisor); // Quotient in lower half
 					data |= (uint)(ushort)(dividend % divisor) << 16; // Remainder in upper half
@@ -1291,10 +1358,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteDIV", $"invalid size for instruction DIV: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1303,12 +1369,13 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
-		return result;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
+		return cycles;
 	}
 
-	private Result<int> ExecuteSDIV(DecodedOperation operation)
+	private int ExecuteSDIV(DecodedOperation operation)
 	{
 		// Quotient = Dest.Hi / Dest.Lo
 		// Remainder = Dest.Hi % Dest.Lo
@@ -1317,11 +1384,12 @@ public partial class IM800
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1334,7 +1402,7 @@ public partial class IM800
 				int divisor = (int)(data & 0xFF);
 
 				// Decision
-				result.ResultObject += 1;
+				cycles += 1;
 				if (divisor == 0)
 				{
 					Registers.SetFlag(Constants.FlagMask.ParityOverflow, true);
@@ -1344,8 +1412,8 @@ public partial class IM800
 					Registers.SetFlag(Constants.FlagMask.ParityOverflow, false);
 
 					int cyclesPerIteration = 4; // Branch, Shift, Loop Overhead
-					result.ResultObject += cyclesPerIteration * 8; // 8 Iterations for 8/8 div
-					result.ResultObject += BitHelper.NumberOfOnes((uint)dividend); // Roughly number of adds/subs needed
+					cycles += cyclesPerIteration * 8; // 8 Iterations for 8/8 div
+					cycles += BitHelper.NumberOfOnes((uint)dividend); // Roughly number of adds/subs needed
 
 					data = (byte)(dividend / divisor); // Quotient in lower half
 					data |= (uint)(byte)(dividend % divisor) << 8; // Remainder in upper half
@@ -1359,7 +1427,7 @@ public partial class IM800
 				int divisor = (int)(data & 0xFFFF);
 
 				// Decision
-				result.ResultObject += 1;
+				cycles += 1;
 				if (divisor == 0)
 				{
 					Registers.SetFlag(Constants.FlagMask.ParityOverflow, true);
@@ -1369,8 +1437,8 @@ public partial class IM800
 					Registers.SetFlag(Constants.FlagMask.ParityOverflow, false);
 
 					int cyclesPerIteration = 4 * Constants.DwordALUCost; // Branch, Shift, Loop Overhead
-					result.ResultObject += cyclesPerIteration * 16; // 16 Iterations for 16/16 div
-					result.ResultObject += BitHelper.NumberOfOnes((uint)dividend); // Roughly number of adds/subs needed
+					cycles += cyclesPerIteration * 16; // 16 Iterations for 16/16 div
+					cycles += BitHelper.NumberOfOnes((uint)dividend); // Roughly number of adds/subs needed
 
 					data = (ushort)(dividend / divisor); // Quotient in lower half
 					data |= (uint)(ushort)(dividend % divisor) << 16; // Remainder in upper half
@@ -1386,10 +1454,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteSDIV", $"invalid size for instruction SDIV: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1398,17 +1465,18 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
-		return result;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
+		return cycles;
 	}
 
 	// Implementation taken from "The Undocumented Z80 Documented" by Sean Young
-	private Result<int> ExecuteDAA(DecodedOperation operation)
+	private int ExecuteDAA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		uint a = Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Byte);
 
@@ -1469,24 +1537,26 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 		Registers.Write(Constants.RegisterTarget.A, Constants.DataSize.Byte, a);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteAND(DecodedOperation operation)
+	private int ExecuteAND(DecodedOperation operation)
 	{
 		// Dest <- Dest & Source
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1517,7 +1587,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = readSourceResult.Data;
@@ -1536,10 +1606,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteAND", $"invalid size for instruction AND: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1553,27 +1622,30 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteOR(DecodedOperation operation)
+	private int ExecuteOR(DecodedOperation operation)
 	{
 		// Dest <- Dest | Source
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1607,7 +1679,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = readSourceResult.Data;
@@ -1626,10 +1698,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteOR", $"invalid size for instruction OR: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1643,27 +1714,30 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteXOR(DecodedOperation operation)
+	private int ExecuteXOR(DecodedOperation operation)
 	{
 		// Dest <- Dest ^ Source
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1697,7 +1771,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = readSourceResult.Data;
@@ -1716,10 +1790,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteXOR", $"invalid size for instruction XOR: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1733,27 +1806,30 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteTST(DecodedOperation operation)
+	private int ExecuteTST(DecodedOperation operation)
 	{
 		// Dest & Source
 
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1784,7 +1860,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = readSourceResult.Data;
@@ -1803,10 +1879,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteTST", $"invalid size for instruction TST: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1819,20 +1894,21 @@ public partial class IM800
 		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteCPL(DecodedOperation operation)
+	private int ExecuteCPL(DecodedOperation operation)
 	{
 		// Dest <- Dest ^ -1
 
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		uint data = readDestResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1866,7 +1942,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = readDestResult.Data;
 				uint b = 0xFFFFFFFF;
@@ -1885,10 +1961,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteCPL", $"invalid size for instruction CPL: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1902,25 +1977,28 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteBIT(DecodedOperation operation)
+	private int ExecuteBIT(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		ALUFlagState flagState = GetALUFlags();
@@ -1950,10 +2028,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteBIT", $"invalid size for instruction BIT: {operation.DataSize}");
 				break;
 			}
 		}
@@ -1964,22 +2041,24 @@ public partial class IM800
 		flagState.Less = flagState.Sign ^ flagState.ParityOverflow;
 		UpdateALUFlags(flagState);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteSET(DecodedOperation operation)
+	private int ExecuteSET(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		uint data = readDestResult.Data;
@@ -2009,10 +2088,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteSET", $"invalid size for instruction SET: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2020,25 +2098,28 @@ public partial class IM800
 		data |= (uint)(1 << bit);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRES(DecodedOperation operation)
+	private int ExecuteRES(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		uint data = readDestResult.Data;
@@ -2068,10 +2149,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteRES", $"invalid size for instruction RES: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2079,25 +2159,28 @@ public partial class IM800
 		data &= ~(uint)(1 << bit);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRLC(DecodedOperation operation)
+	private int ExecuteRLC(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		uint data = readDestResult.Data;
@@ -2116,7 +2199,7 @@ public partial class IM800
 					byte bit7 = (byte)(a & 0x80);
 					a = (byte)((a << 1) | (bit7 >> 7));
 					flagState.Carry = bit7 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2133,7 +2216,7 @@ public partial class IM800
 					ushort bit15 = (ushort)(a & 0x8000);
 					a = (ushort)((a << 1) | (bit15 >> 15));
 					flagState.Carry = bit15 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2151,7 +2234,7 @@ public partial class IM800
 					uint bit31 = a & 0x80000000;
 					a = (a << 1) | (bit31 >> 31);
 					flagState.Carry = bit31 != 0;
-					result.ResultObject += Constants.DwordALUCost;
+					cycles += Constants.DwordALUCost;
 				}
 
 				data = a;
@@ -2167,10 +2250,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteRLC", $"invalid size for instruction RLC: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2182,25 +2264,28 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRRC(DecodedOperation operation)
+	private int ExecuteRRC(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		uint data = readDestResult.Data;
@@ -2219,7 +2304,7 @@ public partial class IM800
 					byte bit0 = (byte)(a & 1);
 					a = (byte)((a >> 1) | (bit0 << 7));
 					flagState.Carry = bit0 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2237,7 +2322,7 @@ public partial class IM800
 					ushort bit0 = (ushort)(a & 1);
 					a = (ushort)((a >> 1) | (bit0 << 15));
 					flagState.Carry = bit0 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2255,7 +2340,7 @@ public partial class IM800
 					uint bit0 = a & 1;
 					a = (a >> 1) | (bit0 << 31);
 					flagState.Carry = bit0 != 0;
-					result.ResultObject += Constants.DwordALUCost;
+					cycles += Constants.DwordALUCost;
 				}
 
 				data = a;
@@ -2271,10 +2356,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteRRC", $"invalid size for instruction RRC: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2286,25 +2370,28 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRL(DecodedOperation operation)
+	private int ExecuteRL(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		uint data = readDestResult.Data;
@@ -2324,7 +2411,7 @@ public partial class IM800
 					a = (byte)(a << 1);
 					a |= (byte)(flagState.Carry ? 1 : 0);
 					flagState.Carry = bit7 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2343,7 +2430,7 @@ public partial class IM800
 					a = (ushort)(a << 1);
 					a |= (ushort)(flagState.Carry ? 1 : 0);
 					flagState.Carry = bit15 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2362,7 +2449,7 @@ public partial class IM800
 					a = a << 1;
 					a |= (uint)(flagState.Carry ? 1 : 0);
 					flagState.Carry = bit31 != 0;
-					result.ResultObject += Constants.DwordALUCost;
+					cycles += Constants.DwordALUCost;
 				}
 
 				data = a;
@@ -2378,10 +2465,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteRL", $"invalid size for instruction RL: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2393,25 +2479,28 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRR(DecodedOperation operation)
+	private int ExecuteRR(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		uint data = readDestResult.Data;
@@ -2430,7 +2519,7 @@ public partial class IM800
 					byte bit0 = (byte)(a & 1);
 					a = (byte)((a >> 1) | ((flagState.Carry ? 1 : 0) << 7));
 					flagState.Carry = bit0 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2448,7 +2537,7 @@ public partial class IM800
 					ushort bit0 = (ushort)(a & 1);
 					a = (ushort)((a >> 1) | ((flagState.Carry ? 1 : 0) << 15));
 					flagState.Carry = bit0 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2466,7 +2555,7 @@ public partial class IM800
 					uint bit0 = a & 1;
 					a = (a >> 1) | ((uint)(flagState.Carry ? 1 : 0) << 31);
 					flagState.Carry = bit0 != 0;
-					result.ResultObject += Constants.DwordALUCost;
+					cycles += Constants.DwordALUCost;
 				}
 
 				data = a;
@@ -2482,10 +2571,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteRR", $"invalid size for instruction RR: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2497,25 +2585,28 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteSLA(DecodedOperation operation)
+	private int ExecuteSLA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		uint data = readDestResult.Data;
@@ -2534,7 +2625,7 @@ public partial class IM800
 					byte bit7 = (byte)(a & 0x80);
 					a = (byte)(a << 1);
 					flagState.Carry = bit7 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2552,7 +2643,7 @@ public partial class IM800
 					ushort bit15 = (ushort)(a & 0x8000);
 					a = (ushort)(a << 1);
 					flagState.Carry = bit15 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2570,7 +2661,7 @@ public partial class IM800
 					uint bit31 = a & 0x80000000;
 					a = a << 1;
 					flagState.Carry = bit31 != 0;
-					result.ResultObject += Constants.DwordALUCost;
+					cycles += Constants.DwordALUCost;
 				}
 
 				data = a;
@@ -2586,10 +2677,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteSLA", $"invalid size for instruction SLA: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2601,25 +2691,28 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteSRA(DecodedOperation operation)
+	private int ExecuteSRA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		uint data = readDestResult.Data;
@@ -2638,7 +2731,7 @@ public partial class IM800
 					byte bit0 = (byte)(a & 1);
 					a = (byte)(a >> 1);
 					flagState.Carry = bit0 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2656,7 +2749,7 @@ public partial class IM800
 					ushort bit0 = (ushort)(a & 1);
 					a = (ushort)(a >> 1);
 					flagState.Carry = bit0 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2674,7 +2767,7 @@ public partial class IM800
 					uint bit0 = a & 1;
 					a >>= 1;
 					flagState.Carry = bit0 != 0;
-					result.ResultObject += Constants.DwordALUCost;
+					cycles += Constants.DwordALUCost;
 				}
 
 				data = a;
@@ -2690,10 +2783,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteSRA", $"invalid size for instruction SRA: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2705,25 +2797,28 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteSRL(DecodedOperation operation)
+	private int ExecuteSRL(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is not null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		MemoryResult readSourceResult = ReadOperand(operation.Source);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult readDestResult = ReadOperand(operation.Destination);
-		result.Combine(readDestResult);
-		result.ResultObject += readDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readDestResult.Cycles;
 
 		byte bit = (byte)readSourceResult.Data;
 		uint data = readDestResult.Data;
@@ -2742,7 +2837,7 @@ public partial class IM800
 					byte bit0 = (byte)(a & 1);
 					a = (byte)(a >>> 1);
 					flagState.Carry = bit0 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2760,7 +2855,7 @@ public partial class IM800
 					ushort bit0 = (ushort)(a & 1);
 					a = (ushort)(a >>> 1);
 					flagState.Carry = bit0 != 0;
-					result.ResultObject++;
+					cycles++;
 				}
 
 				data = a;
@@ -2778,7 +2873,7 @@ public partial class IM800
 					uint bit0 = a & 1;
 					a >>>= 1;
 					flagState.Carry = bit0 != 0;
-					result.ResultObject += Constants.DwordALUCost;
+					cycles += Constants.DwordALUCost;
 				}
 
 				data = a;
@@ -2794,10 +2889,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteSRL", $"invalid size for instruction SRL: {operation.DataSize}");
 				break;
 			}
 		}
@@ -2809,22 +2903,24 @@ public partial class IM800
 		UpdateALUFlags(flagState);
 
 		MemoryResult writeDestResult = WriteOperand(operation.Destination, data);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRLD(DecodedOperation operation)
+	private int ExecuteRLD(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 		MemoryResult readHLResult = _memoryBus.Read(hl, Constants.DataSize.Byte);
-		result.Combine(readHLResult);
-		result.ResultObject += readHLResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readHLResult.Cycles;
 
 		byte a = (byte)Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Byte);
 		byte mem = (byte)readHLResult.Data;
@@ -2837,7 +2933,7 @@ public partial class IM800
 		byte newMem = (byte)((memLow << 4) | aLow);
 
 		MemoryResult writeHLResult = _memoryBus.Write(hl, Constants.DataSize.Byte, newMem);
-		result.ResultObject += writeHLResult.Cycles;
+		cycles += writeHLResult.Cycles;
 
 		ALUFlagState flagState = GetALUFlags();
 		flagState.Sign = (newA & 0x80) != 0;
@@ -2850,20 +2946,21 @@ public partial class IM800
 
 		Registers.Write(Constants.RegisterTarget.A, Constants.DataSize.Byte, newA);
 
-		result.ResultObject += 2;
-		return result;
+		cycles += 2;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRRD(DecodedOperation operation)
+	private int ExecuteRRD(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 		MemoryResult readHLResult = _memoryBus.Read(hl, Constants.DataSize.Byte);
-		result.Combine(readHLResult);
-		result.ResultObject += readHLResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readHLResult.Cycles;
 
 		byte a = (byte)Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Byte);
 		byte mem = (byte)readHLResult.Data;
@@ -2876,7 +2973,7 @@ public partial class IM800
 		byte newMem = (byte)((aLow << 4) | memHigh);
 
 		MemoryResult writeHLResult = _memoryBus.Write(hl, Constants.DataSize.Byte, newMem);
-		result.ResultObject += writeHLResult.Cycles;
+		cycles += writeHLResult.Cycles;
 
 		ALUFlagState flagState = GetALUFlags();
 		flagState.Sign = (newA & 0x80) != 0;
@@ -2889,46 +2986,48 @@ public partial class IM800
 
 		Registers.Write(Constants.RegisterTarget.A, Constants.DataSize.Byte, newA);
 
-		result.ResultObject += 2;
-		return result;
+		cycles += 2;
+		return cycles;
 	}
 
-	private Result<int> ExecuteNOP(DecodedOperation operation)
+	private int ExecuteNOP(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
-		Result<int> result = new(operation.FetchCycles + 1);
-		return result;
+		int cycles = operation.FetchCycles + 1;
+		return cycles;
 	}
 
-	private Result<int> ExecuteJP(DecodedOperation operation)
+	private int ExecuteJP(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		if (IsConditionTrue(operation.Condition))
 		{
 			MemoryResult addressReadResult = ReadOperand(operation.Destination);
-			result.Combine(addressReadResult);
-			result.ResultObject += addressReadResult.Cycles;
+			if (_context.CancelOperation)
+			{ return cycles; }
+			cycles += addressReadResult.Cycles;
 
 			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, addressReadResult.Data);
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteJR(DecodedOperation operation)
+	private int ExecuteJR(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		if (IsConditionTrue(operation.Condition))
 		{
 			MemoryResult addressReadResult = ReadOperand(operation.Destination);
-			result.Combine(addressReadResult);
-			result.ResultObject += addressReadResult.Cycles;
+			if (_context.CancelOperation)
+			{ return cycles; }
+			cycles += addressReadResult.Cycles;
 
 			int displacement = 0;
 
@@ -2948,10 +3047,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteJR", $"invalid size for instruction JR: {operation.DataSize}");
 			}
 
 			int pc = (int)Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
@@ -2959,14 +3057,14 @@ public partial class IM800
 			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteDJNZ(DecodedOperation operation)
+	private int ExecuteDJNZ(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		ushort b = (ushort)Registers.Read(Constants.RegisterTarget.B, Constants.DataSize.Word);
 		b--;
@@ -2978,17 +3076,17 @@ public partial class IM800
 			int displacement = (int)BitHelper.SignExtend(operation.Destination.Data, 8);
 			pc += displacement;
 			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
-			result.ResultObject += 2;
+			cycles += 2;
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteJAZ(DecodedOperation operation)
+	private int ExecuteJAZ(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		ushort a = (ushort)Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Word);
 
@@ -2998,17 +3096,17 @@ public partial class IM800
 			int displacement = (int)BitHelper.SignExtend(operation.Destination.Data, 8);
 			pc += displacement;
 			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
-			result.ResultObject += 2;
+			cycles += 2;
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteJANZ(DecodedOperation operation)
+	private int ExecuteJANZ(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		ushort a = (ushort)Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Word);
 
@@ -3018,51 +3116,55 @@ public partial class IM800
 			int displacement = (int)BitHelper.SignExtend(operation.Destination.Data, 8);
 			pc += displacement;
 			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, (uint)pc);
-			result.ResultObject += 2;
+			cycles += 2;
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteCALL(DecodedOperation operation)
+	private int ExecuteCALL(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		if (IsConditionTrue(operation.Condition))
 		{
 			uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 			MemoryResult pushResult = InternalPush(pc);
-			result.Combine(pushResult);
-			result.ResultObject += pushResult.Cycles;
+			if (_context.CancelOperation)
+			{ return cycles; }
+			cycles += pushResult.Cycles;
 
 			MemoryResult addressReadResult = ReadOperand(operation.Destination);
-			result.Combine(addressReadResult);
-			result.ResultObject += addressReadResult.Cycles;
+			if (_context.CancelOperation)
+			{ return cycles; }
+			cycles += addressReadResult.Cycles;
 
 			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, addressReadResult.Data);
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteCR(DecodedOperation operation)
+	private int ExecuteCR(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		if (IsConditionTrue(operation.Condition))
 		{
 			uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 			MemoryResult pushResult = InternalPush(pc);
-			result.Combine(pushResult);
-			result.ResultObject += pushResult.Cycles;
+			if (_context.CancelOperation)
+			{ return cycles; }
+			cycles += pushResult.Cycles;
 
 			MemoryResult addressReadResult = ReadOperand(operation.Destination);
-			result.Combine(addressReadResult);
-			result.ResultObject += addressReadResult.Cycles;
+			if (_context.CancelOperation)
+			{ return cycles; }
+			cycles += addressReadResult.Cycles;
 
 			int displacement = 0;
 
@@ -3082,215 +3184,220 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteJR", $"invalid size for instruction CR: {operation.DataSize}");
 			}
 
 			pc = (uint)((int)pc + displacement);
 			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, pc);
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRET(DecodedOperation operation)
+	private int ExecuteRET(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		if (IsConditionTrue(operation.Condition))
 		{
 			MemoryResult popResult = InternalPop();
-			result.Combine(popResult);
-			result.ResultObject += popResult.Cycles;
+			if (_context.CancelOperation)
+			{ return cycles; }
+			cycles += popResult.Cycles;
 			Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.Data);
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRETI(DecodedOperation operation)
+	private int ExecuteRETI(DecodedOperation operation)
 	{
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		_interruptBus.CompleteInterrupt();
 
 		MemoryResult popResult = InternalPop();
-		result.Combine(popResult);
-		result.ResultObject += popResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += popResult.Cycles;
 		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.Data);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRETN(DecodedOperation operation)
+	private int ExecuteRETN(DecodedOperation operation)
 	{
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		bool enableInterrupts = Registers.GetFlag(Constants.FlagMask.EnableInterruptsSave);
 		Registers.SetFlag(Constants.FlagMask.EnableInterrupts, enableInterrupts);
 
 		MemoryResult popResult = InternalPop();
-		result.Combine(popResult);
-		result.ResultObject += popResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += popResult.Cycles;
 		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, popResult.Data);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteRST(DecodedOperation operation)
+	private int ExecuteRST(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
-		Result<int> serviceInterruptResult = InternalServiceInterrupt((byte)operation.Destination.Data);
-		result.Combine(serviceInterruptResult);
-		result.ResultObject += serviceInterruptResult.ResultObject;
+		int serviceInterruptCycles = InternalServiceInterrupt((byte)operation.Destination.Data);
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += serviceInterruptCycles;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteSCF(DecodedOperation operation)
+	private int ExecuteSCF(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		Registers.SetFlag(Constants.FlagMask.Carry, true);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteCCF(DecodedOperation operation)
+	private int ExecuteCCF(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		bool carry = Registers.GetFlag(Constants.FlagMask.Carry);
 		Registers.SetFlag(Constants.FlagMask.Carry, !carry);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteEI(DecodedOperation operation)
+	private int ExecuteEI(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		_pendingEnableInterrupts = true;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteDI(DecodedOperation operation)
+	private int ExecuteDI(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		Registers.SetFlag(Constants.FlagMask.EnableInterrupts, false);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteIM1(DecodedOperation operation)
+	private int ExecuteIM1(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		_interruptMode = 1;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteIM2(DecodedOperation operation)
+	private int ExecuteIM2(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		_interruptMode = 2;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteHALT(DecodedOperation operation)
+	private int ExecuteHALT(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		_halted = true;
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteLDI(DecodedOperation operation)
+	private int ExecuteLDI(DecodedOperation operation)
 	{
 		// decode only grabs the immediate in destination
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		// I is only 22 bits long (shifted left 10 to form upper bits of IVT address)
 		uint newI = operation.Destination.Data & 0b1111111111111111111111;
 		Registers.Write(Constants.RegisterTarget.I, Constants.DataSize.Dword, newI);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteLDAR(DecodedOperation operation)
+	private int ExecuteLDAR(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		uint r = Registers.Read(Constants.RegisterTarget.R, Constants.DataSize.Word);
 		Registers.Write(Constants.RegisterTarget.A, Constants.DataSize.Word, r);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteLDRA(DecodedOperation operation)
+	private int ExecuteLDRA(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		uint a = Registers.Read(Constants.RegisterTarget.A, Constants.DataSize.Word);
 		Registers.Write(Constants.RegisterTarget.R, Constants.DataSize.Word, a);
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteBLD(DecodedOperation operation)
+	private int ExecuteBLD(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		uint bc = Registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
 		uint de = Registers.Read(Constants.RegisterTarget.DE, Constants.DataSize.Dword);
 		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 
 		MemoryResult readSourceResult = _memoryBus.Read(hl, operation.DataSize);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		MemoryResult writeDestResult = _memoryBus.Write(
 			de,
 			operation.DataSize,
 			readSourceResult.Data
 		);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
 		uint adjustAmount = 0;
 
@@ -3319,10 +3426,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteBLD", $"invalid size for BLD: {operation.DataSize}");
 				break;
 			}
 		}
@@ -3376,14 +3482,14 @@ public partial class IM800
 			_currentBlockOperation = null;
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteBCP(DecodedOperation operation)
+	private int ExecuteBCP(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		Constants.RegisterTarget afRegisterTarget;
 		if (operation.DataSize == Constants.DataSize.Dword)
@@ -3400,8 +3506,9 @@ public partial class IM800
 		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 
 		MemoryResult readSourceResult = _memoryBus.Read(hl, operation.DataSize);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		uint data = af;
 		ALUFlagState flagState = GetALUFlags();
@@ -3436,7 +3543,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = af;
 				uint b = readSourceResult.Data;
@@ -3457,10 +3564,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("InternalCompare", $"invalid size for compare: {operation.DataSize}");
 				break;
 			}
 		}
@@ -3495,10 +3601,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteBCP", $"invalid size for BCP: {operation.DataSize}");
 				break;
 			}
 		}
@@ -3548,14 +3653,14 @@ public partial class IM800
 			_currentBlockOperation = null;
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteBTST(DecodedOperation operation)
+	private int ExecuteBTST(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		Constants.RegisterTarget afRegisterTarget;
 		if (operation.DataSize == Constants.DataSize.Dword)
@@ -3572,8 +3677,9 @@ public partial class IM800
 		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 
 		MemoryResult readSourceResult = _memoryBus.Read(hl, operation.DataSize);
-		result.Combine(readSourceResult);
-		result.ResultObject += readSourceResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readSourceResult.Cycles;
 
 		uint data = af;
 		ALUFlagState flagState = GetALUFlags();
@@ -3606,7 +3712,7 @@ public partial class IM800
 			}
 			case Constants.DataSize.Dword:
 			{
-				result.ResultObject += Constants.DwordALUCost;
+				cycles += Constants.DwordALUCost;
 
 				uint a = af;
 				uint b = readSourceResult.Data;
@@ -3625,10 +3731,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("BTST", $"invalid size for BTST: {operation.DataSize}");
 				break;
 			}
 		}
@@ -3665,10 +3770,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteBCP", $"invalid size for BCP: {operation.DataSize}");
 				break;
 			}
 		}
@@ -3718,30 +3822,32 @@ public partial class IM800
 			_currentBlockOperation = null;
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteBIN(DecodedOperation operation)
+	private int ExecuteBIN(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		uint bc = Registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
 		uint de = Registers.Read(Constants.RegisterTarget.DE, Constants.DataSize.Dword);
 		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 
 		MemoryResult readPortResult = _ioBus.Read(hl, operation.DataSize);
-		result.Combine(readPortResult);
-		result.ResultObject += readPortResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readPortResult.Cycles;
 
 		MemoryResult writeDestResult = _memoryBus.Write(
 			de,
 			operation.DataSize,
 			readPortResult.Data
 		);
-		result.Combine(writeDestResult);
-		result.ResultObject += writeDestResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writeDestResult.Cycles;
 
 		uint adjustAmount = 0;
 
@@ -3770,10 +3876,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteBLD", $"invalid size for BLD: {operation.DataSize}");
 				break;
 			}
 		}
@@ -3825,30 +3930,32 @@ public partial class IM800
 			_currentBlockOperation = null;
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteBOUT(DecodedOperation operation)
+	private int ExecuteBOUT(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		uint bc = Registers.Read(Constants.RegisterTarget.BC, Constants.DataSize.Dword);
 		uint de = Registers.Read(Constants.RegisterTarget.DE, Constants.DataSize.Dword);
 		uint hl = Registers.Read(Constants.RegisterTarget.HL, Constants.DataSize.Dword);
 
 		MemoryResult readPortResult = _ioBus.Read(hl, operation.DataSize);
-		result.Combine(readPortResult);
-		result.ResultObject += readPortResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += readPortResult.Cycles;
 
 		MemoryResult writePortResult = _ioBus.Write(
 			de,
 			operation.DataSize,
 			readPortResult.Data
 		);
-		result.Combine(writePortResult);
-		result.ResultObject += writePortResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += writePortResult.Cycles;
 
 		uint adjustAmount = 0;
 
@@ -3877,10 +3984,9 @@ public partial class IM800
 				);
 				if (_context.CancelOperation)
 				{
-					return result;
+					return cycles;
 				}
 
-				result.AddError("ExecuteBLD", $"invalid size for BLD: {operation.DataSize}");
 				break;
 			}
 		}
@@ -3932,22 +4038,22 @@ public partial class IM800
 			_currentBlockOperation = null;
 		}
 
-		return result;
+		return cycles;
 	}
 
-	private Result<int> ExecuteBKPT(DecodedOperation operation)
+	private int ExecuteBKPT(DecodedOperation operation)
 	{
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
-		Result<int> result = new(operation.FetchCycles + 1);
+		int cycles = operation.FetchCycles + 1;
 
 		_context.Events.RaiseBkptInstruction(operation);
 		if (_context.CancelOperation)
 		{
-			return result;
+			return cycles;
 		}
 
-		return result;
+		return cycles;
 	}
 
 	private MemoryResult InternalPush(uint value)
@@ -3970,9 +4076,9 @@ public partial class IM800
 		return readMemoryResult;
 	}
 
-	private Result<int> InternalServiceInterrupt(byte interruptNumber)
+	private int InternalServiceInterrupt(byte interruptNumber)
 	{
-		Result<int> result = new(0);
+		int cycles = 0;
 
 		// Wake from halt if necessary
 		_halted = false;
@@ -3983,8 +4089,9 @@ public partial class IM800
 		// Push PC to the stack
 		uint pc = Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 		MemoryResult pushResult = InternalPush(pc);
-		result.Combine(pushResult);
-		result.ResultObject += pushResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += pushResult.Cycles;
 
 		// Get the vector address from the IVT (I << 10) + (interruptNumber << 2)
 		uint vectorAddress = Registers.Read(Constants.RegisterTarget.I, Constants.DataSize.Dword) << 10;
@@ -3992,12 +4099,13 @@ public partial class IM800
 
 		// Read the service routine vector from the vector address
 		MemoryResult vectorReadResult = _memoryBus.Read(vectorAddress, Constants.DataSize.Dword);
-		result.Combine(vectorReadResult);
-		result.ResultObject += vectorReadResult.Cycles;
+		if (_context.CancelOperation)
+		{ return cycles; }
+		cycles += vectorReadResult.Cycles;
 
 		// Jump to the service routine vector
 		Registers.Write(Constants.RegisterTarget.PC, Constants.DataSize.Dword, vectorReadResult.Data);
 
-		return result;
+		return cycles;
 	}
 }

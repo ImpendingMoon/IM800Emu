@@ -81,7 +81,8 @@ public class MemoryBus
 
 			MemoryResult transfer = ReadBusTransaction(currentAddress, transferDataSize);
 
-			result.Combine(transfer);
+			if (_context.CancelOperation)
+			{ return result; }
 			result.Cycles += transfer.Cycles;
 
 			data |= transfer.Data << (offset * 8);
@@ -124,8 +125,8 @@ public class MemoryBus
 
 			MemoryResult transfer = WriteBusTransaction(currentAddress, transferDataSize, transferData);
 
-			result.Combine(transfer);
-
+			if (_context.CancelOperation)
+			{ return result; }
 			result.Cycles += transfer.Cycles;
 
 			offset += transferSize;
@@ -172,7 +173,6 @@ public class MemoryBus
 				return result;
 			}
 
-			result.AddError(nameof(MemoryBus), $"no device mapped at address 0x{address:X}");
 			result.Data = Constants.OpenBusValue;
 			return result;
 		}
@@ -203,7 +203,6 @@ public class MemoryBus
 				return result;
 			}
 
-			result.AddError(nameof(MemoryBus), $"no device mapped at address 0x{address:X}");
 			return result;
 		}
 

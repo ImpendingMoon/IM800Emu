@@ -8,8 +8,8 @@ internal static class Config
 {
 	// -- System --
 	public static Constants.DataSize DataBusWidth => Constants.DataSize.Word; // Default 16-bit data bus
-	public static int CpuSpeedHz => 16 * 1000000; // Default 16 MHz
-	public static int CpuMemorySizeBytes => 512 * 1024; // Default 512 KiB
+	public static int CpuSpeedHz => 4 * 1000000; // Default 4 MHz
+	public static int CpuMemorySizeBytes => 256 * 1024; // Default 256 KiB
 	public static int MemoryBaseWaitStates => 3; // 3 cycles per bus transfer
 	public static int IOBaseWaitStates => MemoryBaseWaitStates + 1; // +1 for I/O delay
 

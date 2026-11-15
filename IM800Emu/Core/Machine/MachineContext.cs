@@ -9,7 +9,6 @@ public class MachineContext
 {
 	public readonly int CyclesPerFrame = Config.CpuSpeedHz / Constants.TargetFramerate;
 	public int CurrentFrameCyclesRemaining = 0;
-	public bool LogExecution = false;
 
 	public MachineContext()
 	{

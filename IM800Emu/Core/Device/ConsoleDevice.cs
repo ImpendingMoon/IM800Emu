@@ -98,10 +98,10 @@ internal class ConsoleDevice : IMemoryDevice
 	{
 		byte status = StatusTxReadyBit;
 
-		if (Console.KeyAvailable)
-		{
-			status |= StatusRxReadyBit;
-		}
+		//if (Console.KeyAvailable)
+		//{
+		//	status |= StatusRxReadyBit;
+		//}
 
 		return status;
 	}

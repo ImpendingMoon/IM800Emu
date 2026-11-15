@@ -76,7 +76,7 @@ internal class Program
 		{
 			stopwatch.Restart();
 
-			Result result = machine.StepFrame();
+			machine.StepFrame();
 
 			Texture2D texture = Raylib.LoadTextureFromImage(machine.GetFrame());
 
@@ -100,7 +100,7 @@ internal class Program
 
 			double elapsedMs = stopwatch.ElapsedMilliseconds;
 
-			//Console.WriteLine($"Frame took {elapsedMs} ms");
+			Console.WriteLine($"Frame took {elapsedMs} ms");
 
 			//double sleepMs = frameIntervalMs - elapsedMs;
 

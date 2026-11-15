@@ -11,11 +11,13 @@ public class Debugger
 	private readonly MachineContext _context;
 	private readonly Dictionary<string, Func<string[], bool>> _commands;
 	private bool _inDebugger;
+	private bool _logExecution;
 
 	public Debugger(MachineContext context)
 	{
 		_context = context;
 		_inDebugger = false;
+		_logExecution = false;
 
 		_context.Events.BeforeMemoryRead += OnBeforeMemoryRead;
 		_context.Events.BeforeMemoryWrite += OnBeforeMemoryWrite;
@@ -277,12 +279,12 @@ public class Debugger
 			}
 			case 2:
 			{
-				_context.LogExecution = true;
+				_logExecution = true;
 				break;
 			}
 			case 3:
 			{
-				_context.LogExecution = false;
+				_logExecution = false;
 				break;
 			}
 		}
@@ -292,12 +294,25 @@ public class Debugger
 
 	private void OnStepFinished(object? sender, MachineEvents.StepFinishedArgs args)
 	{
-		if (_inDebugger)
+		if (_logExecution)
 		{
-			return;
-		}
+			Console.WriteLine();
+			Console.WriteLine($"Executed: {_context.CurrentOperation}");
 
-		// TODO (do we care?)
+			bool previousInDebugState = _inDebugger;
+			_inDebugger = true; // Don't error here
+
+			DecodedOperation nextOperation = _context.Cpu.Decode();
+
+			string pcString = GetNamedAddress(nextOperation.BaseAddress);
+
+			Console.WriteLine($"Next Operation: {nextOperation} at {pcString}");
+
+			Console.WriteLine(GetStandardRegisterDisplayString());
+			Console.WriteLine();
+
+			_inDebugger = previousInDebugState;
+		}
 	}
 
 	private void OnFrameFinished(object? sender, MachineEvents.FrameFinishedArgs args)
@@ -328,14 +343,14 @@ public class Debugger
 	private bool HandleContinue(string[] args)
 	{
 		_context.MachineAction = Constants.MachineAction.Continue;
-		_context.LogExecution = false;
+		_logExecution = false;
 		_inDebugger = false;
 		return true; // Exit debugger
 	}
 
 	private bool HandleStep(string[] args)
 	{
-		_context.LogExecution = true;
+		_logExecution = true;
 		return true;
 	}
 
@@ -349,7 +364,7 @@ public class Debugger
 	{
 		if (args.Length == 0)
 		{
-			Console.WriteLine($"Execution logging is currently {(_context.LogExecution ? "ON" : "OFF")}.");
+			Console.WriteLine($"Execution logging is currently {(_logExecution ? "ON" : "OFF")}.");
 			return false;
 		}
 
@@ -357,13 +372,13 @@ public class Debugger
 		{
 			case "ON":
 			{
-				_context.LogExecution = true;
+				_logExecution = true;
 				Console.WriteLine("Execution logging enabled.");
 				break;
 			}
 			case "OFF":
 			{
-				_context.LogExecution = false;
+				_logExecution = false;
 				Console.WriteLine("Execution logging disabled.");
 				break;
 			}
@@ -493,7 +508,7 @@ public class Debugger
 
 		int i = startOffset;
 		int end = startOffset + length;
-		while (i <= end)
+		while (i < end)
 		{
 			uint current = baseAddress + (uint)i;
 
@@ -520,18 +535,10 @@ public class Debugger
 
 				MemoryResult readResult = _context.MemoryBus.Read(current, Constants.DataSize.Byte);
 
-				if (readResult.IsSuccess)
-				{
-					byte value = (byte)readResult.Data;
-					sb.Append(value.ToString("X2"));
-					sb.Append(' ');
-					characters[j] = value >= 0x20 && value <= 0x7F ? (char)value : '.';
-				}
-				else
-				{
-					sb.Append("xx ");
-					characters[j] = '.';
-				}
+				byte value = (byte)readResult.Data;
+				sb.Append(value.ToString("X2"));
+				sb.Append(' ');
+				characters[j] = value >= 0x20 && value < 0x7F ? (char)value : '.';
 
 				current++;
 			}
