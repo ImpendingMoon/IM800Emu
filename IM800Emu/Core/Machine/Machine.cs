@@ -10,6 +10,7 @@ public class Machine
 	private readonly MachineContext _context;
 	private readonly VideoDevice _videoDevice;
 	private readonly Debugger _debugger;
+	private readonly List<ISteppingDevice> _steppingDevices;
 
 	public Machine(byte[] startupRom, List<Symbol> symbols)
 	{
@@ -17,32 +18,32 @@ public class Machine
 
 		_debugger = new Debugger(_context);
 
+		_steppingDevices = [];
+
 		_context.AddSymbols(symbols);
 
 		// Memory Map:
-		// 0x000000-0x1FFFFF: ROM (whatever the program has)
-		// 0x200000-0x3FFFFF: RAM (512k)
-		// 0x400000-0x5FFFFF: VRAM (64k)
+		// 0x000000-0x1FFFFF: ROM
+		// 0x200000-0x3FFFFF: RAM
+		// 0x400000-0x5FFFFF: VRAM
 		RAMDevice romDevice = new(startupRom, true, "Program ROM", _context);
 		RAMDevice ramDevice = new(Config.CpuMemorySizeBytes, "RAM", _context);
-		RAMDevice vramDevice = new(64 * 1024, "VRAM", _context);
+		RAMDevice vramDevice = new(4 * 1024, "VRAM", _context);
 
 		_context.MemoryBus.AddDevice(romDevice, Config.MemoryBaseWaitStates, 0x000000, 0x200000);
 		_context.MemoryBus.AddDevice(ramDevice, Config.MemoryBaseWaitStates, 0x200000, 0x200000);
 		_context.MemoryBus.AddDevice(vramDevice, Config.MemoryBaseWaitStates, 0x400000, 0x200000);
 
 		// IO Map:
-		// 0x00-0x03: UART
-		// 0x04-0x08: Controller
-		ConsoleDevice uart = new("UART", _context);
+		// 0x00-0x03: Video
+		// 0x04-0x07: Keyboard
 		ControllerDevice controller = new("Controller", _context);
 		_videoDevice = new VideoDevice(vramDevice, "VDP", _context);
 
-		_context.IoBus.AddDevice(uart, Config.IOBaseWaitStates, 0, 4);
+		_context.IoBus.AddDevice(_videoDevice, Config.IOBaseWaitStates, 0, 4);
 		_context.IoBus.AddDevice(controller, Config.IOBaseWaitStates, 4, 4);
-		_context.IoBus.AddDevice(_videoDevice, Config.IOBaseWaitStates, 8, 4);
 
-		_context.InterruptBus.AddDevice(_videoDevice, 1);
+		_steppingDevices.Add(_videoDevice);
 
 		_context.Cpu.Reset();
 	}
@@ -103,13 +104,13 @@ public class Machine
 			cyclesUsed = 4;
 		}
 
+		foreach (var device in _steppingDevices)
+		{
+			device.Step(cyclesUsed);
+		}
+
 		_context.CurrentFrameCyclesRemaining -= cyclesUsed;
 
 		_context.Events.RaiseStepFinished();
-	}
-
-	private void LogInstruction(DecodedOperation operation)
-	{
-
 	}
 }

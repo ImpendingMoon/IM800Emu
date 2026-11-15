@@ -42,6 +42,7 @@ internal class Program
 		Raylib.SetConfigFlags(ConfigFlags.ResizableWindow);
 		Raylib.InitWindow(Constants.WindowWidth * 2, Constants.WindowHeight * 2, "IM800Emu");
 		Raylib.SetWindowMinSize(Constants.WindowWidth, Constants.WindowHeight);
+		Raylib.SetTargetFPS(Constants.TargetFramerate);
 		Raylib.SetExitKey(KeyboardKey.Null);
 		Raylib.SetTraceLogLevel(TraceLogLevel.Warning);
 
@@ -69,7 +70,6 @@ internal class Program
 
 	private static void Run(Machine machine)
 	{
-		double frameIntervalMs = 1000.0 / Constants.TargetFramerate;
 		var stopwatch = new Stopwatch();
 
 		while (!Raylib.WindowShouldClose())
@@ -100,18 +100,7 @@ internal class Program
 
 			double elapsedMs = stopwatch.ElapsedMilliseconds;
 
-			Console.WriteLine($"Frame took {elapsedMs} ms");
-
-			//double sleepMs = frameIntervalMs - elapsedMs;
-
-			//if (sleepMs > 0)
-			//{
-			//	Thread.Sleep((int)sleepMs);
-			//}
-			//else
-			//{
-			//	Console.WriteLine($"Running {-sleepMs} ms behind!");
-			//}
+			//Console.WriteLine($"Frame took {elapsedMs} ms");
 		}
 	}
 

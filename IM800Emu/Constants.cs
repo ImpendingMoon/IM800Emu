@@ -171,7 +171,7 @@ public static class Constants
 
 	public enum VideoMode
 	{
-		Bitmap320x200 = 0,
+		Text80x25 = 0,
 	}
 
 	public static readonly int DwordALUCost = 1;
