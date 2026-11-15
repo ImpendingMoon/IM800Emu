@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using IM800Emu.Core.Bus;
+using System.Diagnostics;
 
 namespace IM800Emu.Core.CPU;
 
@@ -8,6 +8,16 @@ public partial class IM800
 	private Result<int> ExecuteInvalid(DecodedOperation operation)
 	{
 		Result<int> result = new(operation.FetchCycles + 1);
+
+		_context.Events.RaiseInvalidInstruction(
+			operation,
+			"Invalid instruction"
+		);
+		if (_context.CancelOperation)
+		{
+			return result;
+		}
+
 		result.AddError(_executeErrorName, $"Execute{operation.Operation} is not implemented");
 		return result;
 	}
@@ -178,6 +188,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteEXH", $"invalid size for instruction EXH: {operation.Destination.DataSize}");
 				break;
 			}
@@ -241,6 +260,15 @@ public partial class IM800
 		}
 		else
 		{
+			_context.Events.RaiseInvalidInstruction(
+				operation,
+				$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+			);
+			if (_context.CancelOperation)
+			{
+				return result;
+			}
+
 			result.AddError("ExecuteEXA", $"invalid operand for EXA: {operation.Destination}");
 		}
 
@@ -382,6 +410,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteADD", $"invalid size for instruction ADD: {operation.DataSize}");
 				break;
 			}
@@ -478,6 +515,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteADC", $"invalid size for instruction ADC: {operation.DataSize}");
 				break;
 			}
@@ -561,6 +607,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteSUB", $"invalid size for instruction SUB: {operation.DataSize}");
 				break;
 			}
@@ -656,6 +711,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteSBC", $"invalid size for instruction SBC: {operation.DataSize}");
 				break;
 			}
@@ -739,6 +803,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteCP", $"invalid size for instruction CP: {operation.DataSize}");
 				break;
 			}
@@ -812,6 +885,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteINC", $"invalid size for instruction INC: {operation.DataSize}");
 				break;
 			}
@@ -889,6 +971,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteDEC", $"invalid size for instruction DEC: {operation.DataSize}");
 				break;
 			}
@@ -968,6 +1059,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteNEG", $"invalid size for instruction NEG: {operation.DataSize}");
 				break;
 			}
@@ -1019,6 +1119,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteEXT", $"invalid size for instruction EXT: {operation.DataSize}");
 				break;
 			}
@@ -1079,6 +1188,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteMLT", $"invalid size for instruction MLT: {operation.DataSize}");
 				break;
 			}
@@ -1167,6 +1285,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteDIV", $"invalid size for instruction DIV: {operation.DataSize}");
 				break;
 			}
@@ -1253,6 +1380,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteSDIV", $"invalid size for instruction SDIV: {operation.DataSize}");
 				break;
 			}
@@ -1394,6 +1530,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteAND", $"invalid size for instruction AND: {operation.DataSize}");
 				break;
 			}
@@ -1475,6 +1620,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteOR", $"invalid size for instruction OR: {operation.DataSize}");
 				break;
 			}
@@ -1556,6 +1710,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteXOR", $"invalid size for instruction XOR: {operation.DataSize}");
 				break;
 			}
@@ -1634,6 +1797,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteTST", $"invalid size for instruction TST: {operation.DataSize}");
 				break;
 			}
@@ -1707,6 +1879,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteCPL", $"invalid size for instruction CPL: {operation.DataSize}");
 				break;
 			}
@@ -1763,6 +1944,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteBIT", $"invalid size for instruction BIT: {operation.DataSize}");
 				break;
 			}
@@ -1813,6 +2003,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteSET", $"invalid size for instruction SET: {operation.DataSize}");
 				break;
 			}
@@ -1863,6 +2062,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteRES", $"invalid size for instruction RES: {operation.DataSize}");
 				break;
 			}
@@ -1953,6 +2161,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteRLC", $"invalid size for instruction RLC: {operation.DataSize}");
 				break;
 			}
@@ -2048,6 +2265,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteRRC", $"invalid size for instruction RRC: {operation.DataSize}");
 				break;
 			}
@@ -2146,6 +2372,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteRL", $"invalid size for instruction RL: {operation.DataSize}");
 				break;
 			}
@@ -2241,6 +2476,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteRR", $"invalid size for instruction RR: {operation.DataSize}");
 				break;
 			}
@@ -2336,6 +2580,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteSLA", $"invalid size for instruction SLA: {operation.DataSize}");
 				break;
 			}
@@ -2431,6 +2684,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteSRA", $"invalid size for instruction SRA: {operation.DataSize}");
 				break;
 			}
@@ -2526,6 +2788,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteSRL", $"invalid size for instruction SRL: {operation.DataSize}");
 				break;
 			}
@@ -2671,6 +2942,15 @@ public partial class IM800
 			}
 			else
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteJR", $"invalid size for instruction JR: {operation.DataSize}");
 			}
 
@@ -2796,6 +3076,15 @@ public partial class IM800
 			}
 			else
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteJR", $"invalid size for instruction CR: {operation.DataSize}");
 			}
 
@@ -3024,6 +3313,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteBLD", $"invalid size for BLD: {operation.DataSize}");
 				break;
 			}
@@ -3153,6 +3451,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("InternalCompare", $"invalid size for compare: {operation.DataSize}");
 				break;
 			}
@@ -3182,6 +3489,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteBCP", $"invalid size for BCP: {operation.DataSize}");
 				break;
 			}
@@ -3303,6 +3619,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("BTST", $"invalid size for BTST: {operation.DataSize}");
 				break;
 			}
@@ -3334,6 +3659,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteBCP", $"invalid size for BCP: {operation.DataSize}");
 				break;
 			}
@@ -3430,6 +3764,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteBLD", $"invalid size for BLD: {operation.DataSize}");
 				break;
 			}
@@ -3528,6 +3871,15 @@ public partial class IM800
 			}
 			default:
 			{
+				_context.Events.RaiseInvalidInstruction(
+					operation,
+					$"invalid size for instruction {operation.Operation}: {operation.DataSize}"
+				);
+				if (_context.CancelOperation)
+				{
+					return result;
+				}
+
 				result.AddError("ExecuteBLD", $"invalid size for BLD: {operation.DataSize}");
 				break;
 			}
@@ -3588,6 +3940,12 @@ public partial class IM800
 		Debug.Assert(operation.Destination is not null && operation.Source is null);
 
 		Result<int> result = new(operation.FetchCycles + 1);
+
+		_context.Events.RaiseBkptInstruction(operation);
+		if (_context.CancelOperation)
+		{
+			return result;
+		}
 
 		uint code = operation.Destination.Data;
 		_handleBreakpointInstruction(operation.BaseAddress, code);

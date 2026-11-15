@@ -19,13 +19,15 @@ internal class ConsoleDevice : IMemoryDevice
 
 	public const byte StatusRxReadyBit = 0b0000_0001;
 	public const byte StatusTxReadyBit = 0b0000_0010;
-	private readonly MachineContext _machineContext;
+	private readonly MachineContext _context;
+	private readonly string _name;
 
 	private readonly Stream _stdout = Console.OpenStandardOutput();
 
-	public ConsoleDevice(MachineContext machineContext)
+	public ConsoleDevice(string name, MachineContext context)
 	{
-		_machineContext = machineContext;
+		_name = name;
+		_context = context;
 		Console.WriteLine(
 			"Virtual Console Device being used. Press Ctrl+D (EOF) to exit. Press Ctrl+P to enter the debugger."
 		);
@@ -37,15 +39,30 @@ internal class ConsoleDevice : IMemoryDevice
 	{
 		uint result = Constants.OpenBusValue;
 
-		uint offset = address % Length;
+		if (size != Constants.DataSize.Byte)
+		{
+			_context.Events.RaiseBeforeBadMemoryRead(address, size, _name);
+			if (_context.CancelOperation)
+			{
+				return result;
+			}
+		}
 
-		if (offset == StatusOffset)
+		if (address == StatusOffset)
 		{
 			result = BuildStatus();
 		}
-		else if (offset == RxDataOffset)
+		else if (address == RxDataOffset)
 		{
 			result = ReadRx();
+		}
+		else
+		{
+			_context.Events.RaiseBeforeBadMemoryRead(address, size, _name);
+			if (_context.CancelOperation)
+			{
+				return result;
+			}
 		}
 
 		return result;
@@ -53,12 +70,27 @@ internal class ConsoleDevice : IMemoryDevice
 
 	public void Write(uint address, Constants.DataSize size, uint value)
 	{
-		uint offset = address % Length;
+		if (size != Constants.DataSize.Byte)
+		{
+			_context.Events.RaiseBeforeBadMemoryWrite(address, size, value, _name);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+		}
 
-		if (offset == TxDataOffset)
+		if (address == TxDataOffset)
 		{
 			_stdout.WriteByte((byte)value);
 			_stdout.Flush();
+		}
+		else
+		{
+			_context.Events.RaiseBeforeBadMemoryWrite(address, size, value, _name);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
 		}
 	}
 
@@ -102,7 +134,7 @@ internal class ConsoleDevice : IMemoryDevice
 			}
 			else if (key.Key == ConsoleKey.P)
 			{
-				_machineContext.Paused = true;
+				_context.Paused = true;
 				return 0x00;
 			}
 		}

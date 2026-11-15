@@ -1,3 +1,4 @@
+using IM800Emu.Core.Machine;
 using Raylib_cs;
 
 namespace IM800Emu.Core.Device;
@@ -13,6 +14,8 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 {
 	private readonly RAMDevice _vram;
 	private readonly Color[] _colorPalette = new Color[256];
+	private readonly MachineContext _context;
+	private readonly string _name;
 	private bool _enableDisplay;
 	private Constants.VideoMode _currentMode;
 	private Image _display;
@@ -37,7 +40,7 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 		_enableDisplay = true;
 	}
 
-	public VideoDevice(RAMDevice vram)
+	public VideoDevice(RAMDevice vram, string name, MachineContext context)
 	{
 		if (vram.Length < 65536)
 		{
@@ -45,6 +48,8 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 		}
 
 		_vram = vram;
+		_context = context;
+		_name = name;
 		_enableDisplay = false;
 		_currentMode = Constants.VideoMode.Bitmap320x200;
 		_display = Raylib.GenImageColor(Constants.WindowWidth, Constants.WindowHeight, Color.Black);
@@ -61,19 +66,53 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 
 	public uint Read(uint address, Constants.DataSize size)
 	{
-		address = address % Length;
+		uint value = Constants.OpenBusValue;
 
-		return address switch
+		if (size != Constants.DataSize.Byte)
 		{
-			0 => (uint)_currentMode,
-			1 => (uint)(_enableDisplay ? 1 : 0),
-			_ => 0,
-		};
+			_context.Events.RaiseBeforeBadMemoryRead(address, size, _name);
+			if (_context.CancelOperation)
+			{
+				return value;
+			}
+		}
+
+		switch (address)
+		{
+			case 0:
+			{
+				value = (uint)_currentMode;
+				break;
+			}
+			case 1:
+			{
+				value = (uint)(_enableDisplay ? 1 : 0);
+				break;
+			}
+			default:
+			{
+				_context.Events.RaiseBeforeBadMemoryRead(address, size, _name);
+				if (_context.CancelOperation)
+				{
+					return value;
+				}
+				break;
+			}
+		}
+
+		return value;
 	}
 
 	public void Write(uint address, Constants.DataSize size, uint value)
 	{
-		address = address % Length;
+		if (size != Constants.DataSize.Byte)
+		{
+			_context.Events.RaiseBeforeBadMemoryWrite(address, size, value, _name);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+		}
 
 		switch (address)
 		{
@@ -92,6 +131,11 @@ public class VideoDevice : IMemoryDevice, IInterruptingDevice
 				{
 					_enableDisplay = true;
 				}
+				break;
+			}
+			default:
+			{
+				_context.Events.RaiseBeforeBadMemoryWrite(address, size, value, _name);
 				break;
 			}
 		}

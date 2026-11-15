@@ -1,4 +1,5 @@
 using IM800Emu.Core.Bus;
+using IM800Emu.Core.Machine;
 
 namespace IM800Emu.Core.CPU;
 
@@ -12,6 +13,7 @@ public partial class IM800
 	private readonly InterruptBus _interruptBus;
 	private readonly MemoryBus _ioBus;
 	private readonly MemoryBus _memoryBus;
+	private readonly MachineContext _context;
 
 	/// <summary>
 	///     The currently-executing block operation. If this is not null, this operation will be re-sent by Decode()
@@ -24,11 +26,12 @@ public partial class IM800
 	private int _interruptMode = 1;
 	private bool _pendingEnableInterrupts;
 
-	public IM800
-	(MemoryBus memoryBus,
+	public IM800(
+		MemoryBus memoryBus,
 		MemoryBus ioBus,
 		InterruptBus interruptBus,
-		Action<uint, uint> handleBreakpointInstruction
+		Action<uint, uint> handleBreakpointInstruction,
+		MachineContext context
 	)
 	{
 		Registers = new Registers();
@@ -36,6 +39,7 @@ public partial class IM800
 		_ioBus = ioBus;
 		_interruptBus = interruptBus;
 		_handleBreakpointInstruction = handleBreakpointInstruction;
+		_context = context;
 	}
 
 	public Registers Registers { get; }
@@ -167,6 +171,15 @@ public partial class IM800
 					}
 					default:
 					{
+						_context.Events.RaiseInvalidInstruction(
+							decodeResult.ResultObject,
+							$"invalid special subgroup selector 0x{subgroupSelector:X2}"
+						);
+						if (_context.CancelOperation)
+						{
+							return decodeResult;
+						}
+
 						decodeResult.AddError(
 							_decodeErrorName,
 							$"invalid special subgroup selector 0x{subgroupSelector:X2}"

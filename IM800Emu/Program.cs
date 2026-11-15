@@ -100,7 +100,7 @@ internal class Program
 
 			double elapsedMs = stopwatch.ElapsedMilliseconds;
 
-			Console.WriteLine($"Frame took {elapsedMs} ms");
+			//Console.WriteLine($"Frame took {elapsedMs} ms");
 
 			//double sleepMs = frameIntervalMs - elapsedMs;
 

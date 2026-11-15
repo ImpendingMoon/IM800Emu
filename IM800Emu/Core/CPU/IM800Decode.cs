@@ -47,6 +47,15 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid format R opcode 0x{opcode:X2}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(_decodeErrorName, $"invalid format R opcode 0x{opcode:X2}");
 			return;
 		}
@@ -58,6 +67,15 @@ public partial class IM800
 		// Only LEA can use a Qword operand size
 		if (size == Constants.DataSize.Qword && decodeResult.ResultObject.Operation != Constants.Operation.LEA)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(
 				_decodeErrorName,
 				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
@@ -88,6 +106,15 @@ public partial class IM800
 
 		if (destinationSelector == (int)Constants.RegisterSelector.Immediate)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				"destination register cannot be immediate"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(_decodeErrorName, "destination register cannot be immediate");
 			return;
 		}
@@ -166,6 +193,15 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid format RM opcode 0x{opcode:X2}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(_decodeErrorName, $"invalid format RM opcode 0x{opcode:X2}");
 			return;
 		}
@@ -179,6 +215,15 @@ public partial class IM800
 		// Only LEA can use a Qword operand size
 		if (size == Constants.DataSize.Qword && decodeResult.ResultObject.Operation != Constants.Operation.LEA)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(
 				_decodeErrorName,
 				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
@@ -216,6 +261,15 @@ public partial class IM800
 			&& addressRegisterSelector == (int)Constants.RegisterSelector.Immediate
 		)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				"cannot use an immediate value and a direct address"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(_decodeErrorName, "cannot use an immediate value and a direct address");
 			return;
 		}
@@ -268,6 +322,15 @@ public partial class IM800
 		{
 			if (!store)
 			{
+				_context.Events.RaiseInvalidInstruction(
+					decodeResult.ResultObject,
+					"cannot use an immediate value as a destination"
+				);
+				if (_context.CancelOperation)
+				{
+					return;
+				}
+
 				decodeResult.AddError(_decodeErrorName, "cannot use an immediate value as a destination");
 				return;
 			}
@@ -327,6 +390,15 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(
 				_decodeErrorName,
 				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
@@ -341,6 +413,15 @@ public partial class IM800
 
 		if (size == Constants.DataSize.Qword)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(
 				_decodeErrorName,
 				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
@@ -353,6 +434,15 @@ public partial class IM800
 		if (registerSelector == (int)Constants.RegisterSelector.Immediate &&
 			decodeResult.ResultObject.Operation != Constants.Operation.PUSH)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				"Format UR cannot use an immediate value"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(_decodeErrorName, "Format UR cannot use an immediate value");
 			return;
 		}
@@ -406,6 +496,15 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(
 				_decodeErrorName,
 				$"invalid format UR opcode and function 0x{opcode:X2}, 0x{function:X2}"
@@ -420,6 +519,15 @@ public partial class IM800
 
 		if (size == Constants.DataSize.Qword)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(
 				_decodeErrorName,
 				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
@@ -539,6 +647,15 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid format B opcode 0x{opcode:X2}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(_decodeErrorName, $"invalid format B opcode 0x{opcode:X2}");
 			return;
 		}
@@ -561,6 +678,15 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.RET && registerSelector != 0)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				"RET must have a register selector of 0"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(_decodeErrorName, "RET must have a register selector of 0");
 			return;
 		}
@@ -621,6 +747,15 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid format M opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(
 				_decodeErrorName,
 				$"invalid format M opcode and function 0x{opcode:X2}, 0x{function:X2}"
@@ -685,6 +820,15 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid format SB opcode 0x{opcode:X2}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(_decodeErrorName, $"invalid format SB opcode 0x{opcode:X2}");
 			return;
 		}
@@ -728,6 +872,15 @@ public partial class IM800
 
 		if (decodeResult.ResultObject.Operation == Constants.Operation.Invalid)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid format BLK opcode and function 0x{opcode:X2}, 0x{function:X2}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(
 				_decodeErrorName,
 				$"invalid format BLK opcode and function 0x{opcode:X2}, 0x{function:X2}"
@@ -740,6 +893,15 @@ public partial class IM800
 
 		if (size is Constants.DataSize.Dword or Constants.DataSize.Qword)
 		{
+			_context.Events.RaiseInvalidInstruction(
+				decodeResult.ResultObject,
+				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"
+			);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
 			decodeResult.AddError(
 				_decodeErrorName,
 				$"invalid size {size} for operation {decodeResult.ResultObject.Operation}"

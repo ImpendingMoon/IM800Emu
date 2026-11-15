@@ -20,12 +20,13 @@ public class MachineContext
 
 	public MachineContext()
 	{
-		MemoryBus = new MemoryBus(Config.DataBusWidth);
-		IoBus = new MemoryBus(Config.DataBusWidth);
+		MemoryBus = new MemoryBus(Config.DataBusWidth, this, "Memory Bus");
+		IoBus = new MemoryBus(Config.DataBusWidth, this, "I/O Bus");
 		InterruptBus = new InterruptBus();
-		Cpu = new IM800(MemoryBus, IoBus, InterruptBus, HandleBreakpointInstruction);
+		Cpu = new IM800(MemoryBus, IoBus, InterruptBus, HandleBreakpointInstruction, this);
 		Symbols = [];
 		CurrentOperation = new DecodedOperation();
+		Events = new MachineEvents();
 	}
 
 	public IM800 Cpu { get; }
@@ -36,6 +37,10 @@ public class MachineContext
 	public List<Symbol> Symbols { get; }
 
 	public DecodedOperation CurrentOperation { get; set; }
+	public MachineEvents Events { get; }
+	public Constants.MachineAction MachineAction { get; set; }
+
+	public bool CancelOperation => MachineAction == Constants.MachineAction.Cancel;
 
 	public void AddSymbols(List<Symbol> symbols)
 	{

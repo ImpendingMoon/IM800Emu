@@ -2,6 +2,18 @@ namespace IM800Emu;
 
 public static class Constants
 {
+	public enum MachineAction
+	{
+		/// <summary>
+		/// Continue execution normally, use fallback values where applicable
+		/// </summary>
+		Continue = 0,
+		/// <summary>
+		/// Cancel the current operation, early return
+		/// </summary>
+		Cancel,
+	}
+
 	public enum Condition
 	{
 		Always = 0,

@@ -6,18 +6,25 @@ public class RAMDevice : IMemoryDevice
 {
 	private readonly byte[] _data;
 	private readonly bool _readOnly;
+	private readonly string _name;
+	private readonly Machine.MachineContext _context;
 
-	public RAMDevice(byte[] data, bool readOnly)
+	public RAMDevice(byte[] data, bool readOnly, string name, Machine.MachineContext context)
 	{
 		_data = data;
 		_readOnly = readOnly;
+		_name = name;
+		_context = context;
 	}
 
-	public RAMDevice(int size)
+	public RAMDevice(int size, string name, Machine.MachineContext context)
 	{
 		_data = new byte[size];
 		_readOnly = false;
 		Array.Fill<byte>(_data, 0xFF);
+
+		_name = name;
+		_context = context;
 	}
 
 	public uint Length => (uint)_data.Length;
@@ -29,7 +36,17 @@ public class RAMDevice : IMemoryDevice
 
 	public uint Read(uint address, Constants.DataSize size)
 	{
-		address %= (uint)_data.Length;
+		if (address > Length - Helpers.SizeHelper.GetDataSizeBytes(size))
+		{
+			_context.Events.RaiseBeforeBadMemoryRead(address, size, _name);
+			if (_context.CancelOperation)
+			{
+				return Constants.OpenBusValue;
+			}
+
+			// Still don't want to read out of bounds. Could change BinaryPrimitive to shift + OR later.
+			return Constants.OpenBusValue;
+		}
 
 		uint value = size switch
 		{
@@ -44,12 +61,17 @@ public class RAMDevice : IMemoryDevice
 
 	public void Write(uint address, Constants.DataSize size, uint value)
 	{
-		if (_readOnly)
+		if (_readOnly || address > Length - Helpers.SizeHelper.GetDataSizeBytes(size))
 		{
+			_context.Events.RaiseBeforeBadMemoryWrite(address, size, value, _name);
+			if (_context.CancelOperation)
+			{
+				return;
+			}
+
+			// Still don't want to write out of bounds. Could change BinaryPrimitive to shift + OR later.
 			return;
 		}
-
-		address %= (uint)_data.Length;
 
 		switch (size)
 		{

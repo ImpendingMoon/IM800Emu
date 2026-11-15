@@ -1,4 +1,5 @@
 using IM800Emu.Core.Device;
+using IM800Emu.Core.Machine;
 
 namespace IM800Emu.Core.Bus;
 
@@ -9,8 +10,10 @@ namespace IM800Emu.Core.Bus;
 public class MemoryBus
 {
 	private readonly List<DeviceMapping> _mappings = [];
+	private readonly MachineContext _context;
+	private readonly string _name;
 
-	public MemoryBus(Constants.DataSize busWidth)
+	public MemoryBus(Constants.DataSize busWidth, MachineContext context, string name)
 	{
 		if (!IsValidDataSize(busWidth))
 		{
@@ -18,6 +21,8 @@ public class MemoryBus
 		}
 
 		BusWidth = busWidth;
+		_context = context;
+		_name = name;
 	}
 
 	/// <summary>
@@ -52,9 +57,15 @@ public class MemoryBus
 
 	public MemoryResult Read(uint address, Constants.DataSize size)
 	{
-		int bytesToRead = GetSizeInBytes(size);
+		int bytesToRead = Helpers.SizeHelper.GetDataSizeBytes(size);
 
 		MemoryResult result = new();
+
+		_context.Events.RaiseBeforeMemoryRead(address, size, _name);
+		if (_context.CancelOperation)
+		{
+			return result;
+		}
 
 		uint data = 0;
 		int offset = 0;
@@ -85,12 +96,18 @@ public class MemoryBus
 
 	public MemoryResult Write(uint address, Constants.DataSize size, uint data)
 	{
-		int bytesToWrite = GetSizeInBytes(size);
+		int bytesToWrite = Helpers.SizeHelper.GetDataSizeBytes(size);
 
 		MemoryResult result = new()
 		{
 			Data = data
 		};
+
+		_context.Events.RaiseBeforeMemoryWrite(address, size, data, _name);
+		if (_context.CancelOperation)
+		{
+			return result;
+		}
 
 		int offset = 0;
 
@@ -122,7 +139,7 @@ public class MemoryBus
 	/// </summary>
 	private int GetTransferSize(uint address, int remaining)
 	{
-		int busBytes = GetSizeInBytes(BusWidth);
+		int busBytes = Helpers.SizeHelper.GetDataSizeBytes(BusWidth);
 
 		// Prefer the largest possible naturally aligned transaction.
 		if (busBytes >= 4 && remaining >= 4 && address % 4 == 0)
@@ -149,6 +166,12 @@ public class MemoryBus
 
 		if (mapping is null)
 		{
+			_context.Events.RaiseBeforeBadMemoryRead(address, size, _name);
+			if (_context.CancelOperation)
+			{
+				return result;
+			}
+
 			result.AddError(nameof(MemoryBus), $"no device mapped at address 0x{address:X}");
 			result.Data = Constants.OpenBusValue;
 			return result;
@@ -174,6 +197,12 @@ public class MemoryBus
 
 		if (mapping is null)
 		{
+			_context.Events.RaiseBeforeBadMemoryWrite(address, size, data, _name);
+			if (_context.CancelOperation)
+			{
+				return result;
+			}
+
 			result.AddError(nameof(MemoryBus), $"no device mapped at address 0x{address:X}");
 			return result;
 		}
@@ -201,17 +230,6 @@ public class MemoryBus
 		}
 
 		return result;
-	}
-
-	private static int GetSizeInBytes(Constants.DataSize size)
-	{
-		return size switch
-		{
-			Constants.DataSize.Byte => 1,
-			Constants.DataSize.Word => 2,
-			Constants.DataSize.Dword => 4,
-			_ => throw new ArgumentException($"invalid size {size}", nameof(size))
-		};
 	}
 
 	private static Constants.DataSize ToDataSize(int bytes)

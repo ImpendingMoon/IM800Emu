@@ -1,12 +1,12 @@
-using System.Globalization;
-using System.Text;
 using IM800Emu.Core.Bus;
 using IM800Emu.Core.CPU;
 using IM800Emu.Core.Machine;
+using System.Globalization;
+using System.Text;
 
 namespace IM800Emu.Core.IM800Debug;
 
-public static class Debugger
+public static class LegacyDebugger
 {
 	// Command name to handler. Handler returns true to break from the debugger
 	private static readonly Dictionary<string, Func<MachineContext, string[], bool>> Commands =

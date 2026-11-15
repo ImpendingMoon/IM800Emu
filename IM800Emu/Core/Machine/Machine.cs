@@ -13,7 +13,7 @@ public class Machine
 	public Machine(byte[] startupRom, List<Symbol> symbols)
 	{
 		_context = new MachineContext();
-		Debugger.AttachDebugger(_context);
+		LegacyDebugger.AttachDebugger(_context);
 
 		_context.AddSymbols(symbols);
 
@@ -21,9 +21,9 @@ public class Machine
 		// 0x000000-0x1FFFFF: ROM (whatever the program has)
 		// 0x200000-0x3FFFFF: RAM (512k)
 		// 0x400000-0x5FFFFF: VRAM (64k)
-		RAMDevice romDevice = new(startupRom, true);
-		RAMDevice ramDevice = new(512 * 1024);
-		RAMDevice vramDevice = new(64 * 1024);
+		RAMDevice romDevice = new(startupRom, true, "Program ROM", _context);
+		RAMDevice ramDevice = new(Config.CpuMemorySizeBytes, "RAM", _context);
+		RAMDevice vramDevice = new(64 * 1024, "VRAM", _context);
 
 		_context.MemoryBus.AddDevice(romDevice, Config.MemoryBaseWaitStates, 0x000000, 0x200000);
 		_context.MemoryBus.AddDevice(ramDevice, Config.MemoryBaseWaitStates, 0x200000, 0x200000);
@@ -32,9 +32,9 @@ public class Machine
 		// IO Map:
 		// 0x00-0x03: UART
 		// 0x04-0x08: Controller
-		ConsoleDevice uart = new(_context);
-		ControllerDevice controller = new();
-		_videoDevice = new VideoDevice(vramDevice);
+		ConsoleDevice uart = new("UART", _context);
+		ControllerDevice controller = new("Controller", _context);
+		_videoDevice = new VideoDevice(vramDevice, "VDP", _context);
 
 		_context.IoBus.AddDevice(uart, Config.IOBaseWaitStates, 0, 4);
 		_context.IoBus.AddDevice(controller, Config.IOBaseWaitStates, 4, 4);
@@ -80,12 +80,21 @@ public class Machine
 			}
 		}
 
+		_context.Events.RaiseFrameFinished();
+
 		return result;
 	}
 
 	private Result StepInstruction()
 	{
 		Result result = new();
+
+		uint pc = _context.Cpu.Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+		_context.Events.RaiseBeforeInstructionFetch(pc);
+		if (_context.CancelOperation)
+		{
+			return result;
+		}
 
 		Result<DecodedOperation> decodeResult = _context.Cpu.Decode();
 		result.Combine(decodeResult);
@@ -122,6 +131,8 @@ public class Machine
 			LogInstruction(decodeResult.ResultObject);
 		}
 
+		_context.Events.RaiseStepFinished();
+
 		return result;
 	}
 
@@ -134,7 +145,7 @@ public class Machine
 			Console.WriteLine(error);
 		}
 
-		string pcString = Debugger.GetNamedAddress(_context, decodeResult.ResultObject.BaseAddress);
+		string pcString = LegacyDebugger.GetNamedAddress(_context, decodeResult.ResultObject.BaseAddress);
 
 		Console.WriteLine($"Instruction: {decodeResult.ResultObject} at {pcString}");
 
@@ -154,7 +165,7 @@ public class Machine
 		}
 		else
 		{
-			string pcString = Debugger.GetNamedAddress(_context, nextOperation.ResultObject.BaseAddress);
+			string pcString = LegacyDebugger.GetNamedAddress(_context, nextOperation.ResultObject.BaseAddress);
 
 			Console.WriteLine($"Next Operation: {nextOperation.ResultObject} at {pcString}");
 		}
