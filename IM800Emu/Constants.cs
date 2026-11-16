@@ -176,8 +176,8 @@ public static class Constants
 
 	public static readonly int DwordALUCost = 1;
 	public static readonly int TargetFramerate = 60;
-	public static readonly int WindowWidth = 320;
-	public static readonly int WindowHeight = 200;
+	public static readonly int WindowWidth = 640;
+	public static readonly int WindowHeight = 480;
 	public static readonly int VsyncInterruptNumber = 10;
 	public static readonly uint RelativeColorPaletteAddress = 0xFA00;
 	public static readonly uint OpenBusValue = 0xFFFFFFFF;

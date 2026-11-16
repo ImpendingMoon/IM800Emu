@@ -56,20 +56,6 @@ public class VideoDevice : IMemoryDevice, ISteppingDevice
 	public bool NMI { get; private set; }
 	public bool IsServicingInterrupt { get; private set; }
 
-	private void TempDeleteMeFillVramWithGarbageToShowJunkOnScreenThanksBye()
-	{
-		uint length = _vram.Length;
-		Random rng = new();
-
-		for (uint i = 0; i < length; i++)
-		{
-			_vram.Write(i, Constants.DataSize.Byte, (uint)rng.Next(256));
-		}
-
-		_enableDisplay = true;
-		_enableCursor = true;
-	}
-
 	public VideoDevice(RAMDevice vram, string name, MachineContext context)
 	{
 		if (vram.Length < 4096)
@@ -95,8 +81,6 @@ public class VideoDevice : IMemoryDevice, ISteppingDevice
 
 		_display = Raylib.GenImageColor(640, 200, Color.Black);
 		_blankDisplay = Raylib.GenImageColor(1, 1, Color.Black);
-
-		TempDeleteMeFillVramWithGarbageToShowJunkOnScreenThanksBye();
 	}
 
 	~VideoDevice()
