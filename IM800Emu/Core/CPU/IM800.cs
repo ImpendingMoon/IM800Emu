@@ -191,6 +191,7 @@ public partial class IM800
 
 		if (_pendingEnableInterrupts)
 		{
+			_pendingEnableInterrupts = false;
 			_enableInterrupts = true;
 		}
 

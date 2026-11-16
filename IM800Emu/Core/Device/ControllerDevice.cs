@@ -29,7 +29,7 @@ internal class ControllerDevice : IMemoryDevice
 
 		if (address == 0)
 		{
-			value = Input.GetPressedButtonBitmap();
+			value = ButtonInput.GetPressedButtonBitmap();
 		}
 		else
 		{

@@ -9,6 +9,7 @@ public class Machine
 {
 	private readonly MachineContext _context;
 	private readonly VideoDevice _videoDevice;
+	private readonly KeyboardDevice _keyboardDevice;
 	private readonly Debugger _debugger;
 	private readonly List<ISteppingDevice> _steppingDevices;
 
@@ -37,13 +38,15 @@ public class Machine
 		// IO Map:
 		// 0x00-0x03: Video
 		// 0x04-0x07: Keyboard
-		ControllerDevice controller = new("Controller", _context);
 		_videoDevice = new VideoDevice(vramDevice, "VDP", _context);
+		_keyboardDevice = new KeyboardDevice("Keyboard", _context);
 
 		_context.IoBus.AddDevice(_videoDevice, Config.IOBaseWaitStates, 0, 4);
-		_context.IoBus.AddDevice(controller, Config.IOBaseWaitStates, 4, 4);
+		_context.IoBus.AddDevice(_keyboardDevice, Config.IOBaseWaitStates, 4, 4);
 
 		_steppingDevices.Add(_videoDevice);
+
+		_context.InterruptBus.AddDevice(_keyboardDevice, 1);
 
 		_context.Cpu.Reset();
 	}
@@ -55,6 +58,9 @@ public class Machine
 
 	public void StepFrame()
 	{
+		_keyboardDevice.GetInputFromWindow();
+
+		_debugger.CheckForPauseHotkey();
 		if (_context.MachineAction != Constants.MachineAction.Continue)
 		{
 			_debugger.RunPauseState();

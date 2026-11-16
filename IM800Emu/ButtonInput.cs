@@ -2,7 +2,7 @@ using Raylib_cs;
 
 namespace IM800Emu;
 
-internal static class Input
+internal static class ButtonInput
 {
 	public enum ButtonBit
 	{

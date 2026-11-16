@@ -181,4 +181,6 @@ public static class Constants
 	public static readonly int VsyncInterruptNumber = 10;
 	public static readonly uint RelativeColorPaletteAddress = 0xFA00;
 	public static readonly uint OpenBusValue = 0xFFFFFFFF;
+	public static readonly uint KeyboardScancodeQueueSize = 256;
+	public static readonly byte KeyboardInterruptNumber = 0x10;
 }

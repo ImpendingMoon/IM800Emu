@@ -39,7 +39,7 @@ internal class Program
 
 		var machine = new Machine(startupRom, symbols);
 
-		Raylib.SetConfigFlags(ConfigFlags.ResizableWindow);
+		Raylib.SetConfigFlags(ConfigFlags.ResizableWindow | ConfigFlags.HighDpiWindow);
 		Raylib.InitWindow(Constants.WindowWidth * 2, Constants.WindowHeight * 2, "IM800Emu");
 		Raylib.SetWindowMinSize(Constants.WindowWidth, Constants.WindowHeight);
 		Raylib.SetTargetFPS(Constants.TargetFramerate);

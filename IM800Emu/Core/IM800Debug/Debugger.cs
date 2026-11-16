@@ -68,6 +68,18 @@ public class Debugger
 		_context.Events.FrameFinished -= OnFrameFinished;
 	}
 
+	public void CheckForPauseHotkey()
+	{
+		if (Console.KeyAvailable)
+		{
+			var key = Console.ReadKey();
+			if (key.Modifiers.HasFlag(ConsoleModifiers.Control) && key.Key == ConsoleKey.P)
+			{
+				_context.MachineAction = Constants.MachineAction.Pause;
+			}
+		}
+	}
+
 	public void RunPauseState()
 	{
 		if (!_inDebugger)
