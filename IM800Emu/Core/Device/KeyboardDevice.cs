@@ -160,7 +160,7 @@ internal class KeyboardDevice : IMemoryDevice, IInterruptingDevice
 
 	private void AddKey(byte[] scancode)
 	{
-		if (_enableInterrupts)
+		if (_enableInterrupts && !IsServicingInterrupt)
 		{
 			INT = true;
 		}

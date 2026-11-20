@@ -540,7 +540,7 @@ public class Debugger
 
 			for (int j = 0; j < bytesPerLine; j++)
 			{
-				if (i + j >= length)
+				if (i + j >= end)
 				{
 					break;
 				}
