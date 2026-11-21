@@ -6,7 +6,7 @@ namespace IM800Emu.Core.CPU;
 /// <summary>
 ///     Implements the IM800 ISA. Split into several files: IM800.cs, IM800Decode.cs, and IM800Execute.cs
 /// </summary>
-public partial class IM800
+internal partial class IM800
 {
 	private readonly InterruptBus _interruptBus;
 	private readonly MemoryBus _ioBus;

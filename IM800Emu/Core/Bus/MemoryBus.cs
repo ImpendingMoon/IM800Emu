@@ -7,7 +7,7 @@ namespace IM800Emu.Core.Bus;
 /// Provides access to the memory bus and maps memory devices into the processor's address space.
 /// Note: This cannot access multiple devices on a single access.
 /// </summary>
-public class MemoryBus
+internal class MemoryBus
 {
 	private readonly List<DeviceMapping> _mappings = [];
 	private readonly MachineContext _context;

@@ -5,7 +5,7 @@ using Raylib_cs;
 
 namespace IM800Emu.Core.Machine;
 
-public class Machine
+internal class Machine
 {
 	private readonly MachineContext _context;
 	private readonly VideoDevice _videoDevice;
@@ -13,7 +13,7 @@ public class Machine
 	private readonly Debugger _debugger;
 	private readonly List<ISteppingDevice> _steppingDevices;
 
-	public Machine(byte[] startupRom, List<Symbol> symbols)
+	public Machine(byte[] startupRom, List<Symbol> symbols, DebugFile? debugFile)
 	{
 		_context = new MachineContext();
 
@@ -22,6 +22,10 @@ public class Machine
 		_steppingDevices = [];
 
 		_context.AddSymbols(symbols);
+		if (debugFile != null)
+		{
+			_context.SetDebugFile(debugFile);
+		}
 
 		// Memory Map:
 		// 0x000000-0x1FFFFF: ROM

@@ -2,7 +2,7 @@ using System.Text;
 
 namespace IM800Emu.Core.CPU;
 
-public class Operand
+internal class Operand
 {
 	public Constants.DataSize DataSize { get; set; }
 	public bool Indirect { get; set; }

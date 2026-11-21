@@ -5,7 +5,7 @@ using IM800Emu.Core.IM800Debug;
 namespace IM800Emu.Core.Machine;
 
 // Used to share context between emulator and debugger
-public class MachineContext
+internal class MachineContext
 {
 	public readonly int CyclesPerFrame = Config.CpuSpeedHz / Constants.TargetFramerate;
 	public int CurrentFrameCyclesRemaining = 0;
@@ -27,6 +27,7 @@ public class MachineContext
 	public InterruptBus InterruptBus { get; }
 
 	public List<Symbol> Symbols { get; }
+	public DebugFile? DebugFile { get; private set; }
 
 	public DecodedOperation CurrentOperation { get; set; }
 	public MachineEvents Events { get; }
@@ -38,5 +39,10 @@ public class MachineContext
 	{
 		Symbols.AddRange(symbols);
 		Symbols.Sort((a, b) => a.Value.CompareTo(b.Value));
+	}
+
+	public void SetDebugFile(DebugFile debugFile)
+	{
+		DebugFile = debugFile;
 	}
 }

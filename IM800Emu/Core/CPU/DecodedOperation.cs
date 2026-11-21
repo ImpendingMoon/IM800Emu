@@ -5,7 +5,7 @@ namespace IM800Emu.Core.CPU;
 /// <summary>
 ///     Represents a fully decoded instruction, ready to be executed
 /// </summary>
-public class DecodedOperation
+internal class DecodedOperation
 {
 	public Constants.Operation Operation { get; set; }
 	public Operand? Destination { get; set; }

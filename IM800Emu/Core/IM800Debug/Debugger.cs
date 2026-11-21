@@ -6,12 +6,23 @@ using System.Text;
 
 namespace IM800Emu.Core.IM800Debug;
 
-public class Debugger
+internal partial class Debugger
 {
+	private const int SourceContextLines = 3;
+
 	private readonly MachineContext _context;
 	private readonly Dictionary<string, Func<string[], bool>> _commands;
 	private bool _inDebugger;
 	private bool _logExecution;
+
+	// The debug file that's currently indexed. In case this ever can change without restarting the emulator.
+	private DebugFile? _indexedDebugFile;
+	private List<DebugSymbol> _debugLabels = [];
+	// All debug file symbols (labels, constants, etc.) by name, for command argument lookups
+	private Dictionary<string, long> _symbolsByName = new(StringComparer.Ordinal);
+	// Indices into DebugFile.SourceLines of lines that emit bytes, sorted by BaseAddress
+	private List<int> _emittingLineIndices = [];
+	private List<Breakpoint> _breakpoints;
 
 	public Debugger(MachineContext context)
 	{
@@ -48,9 +59,13 @@ public class Debugger
 			["st"] = HandleDumpStack,
 			["mem"] = HandleDumpMemory,
 			["m"] = HandleDumpMemory,
+			["break"] = HandleBreak,
+			["b"] = HandleBreak,
 			["help"] = HandleHelp,
 			["?"] = HandleHelp
 		};
+
+		_breakpoints = new List<Breakpoint>();
 	}
 
 	~Debugger()
@@ -91,6 +106,7 @@ public class Debugger
 			string pcString = GetNamedAddress(_context.CurrentOperation.BaseAddress);
 
 			Console.WriteLine($"Currently executing {_context.CurrentOperation} at {pcString}");
+			PrintSourceContext(_context.CurrentOperation.BaseAddress);
 			Console.WriteLine();
 			Console.WriteLine("Type 'help' for a list of commands.");
 		}
@@ -138,30 +154,61 @@ public class Debugger
 	/// <returns></returns>
 	public string GetNamedAddress(uint address)
 	{
-		Symbol? lastBelow = null;
-
-		// Symbols list is sorted on entry
-		for (int i = 0; i < _context.Symbols.Count; i++)
+		if (!TryFindLabelAtOrBelow(address, out string? name, out uint labelAddress))
 		{
-			Symbol symbol = _context.Symbols[i];
-			if (symbol.Type == Constants.SymbolType.Label)
-			{
-				if ((uint)symbol.Value > address)
-				{
-					if (lastBelow is null)
-					{
-						break;
-					}
-
-					uint offset = address - (uint)lastBelow.Value;
-					return $"{lastBelow.Name}+{offset} ({address:X8})";
-				}
-
-				lastBelow = symbol;
-			}
+			return address.ToString("X8");
 		}
 
-		return address.ToString("X8");
+		uint offset = address - labelAddress;
+		return $"{name}+{offset} ({address:X8})";
+	}
+
+	/// <summary>
+	///     Gets a formatted block of source lines surrounding the line that was emitted at the
+	///     given address, or null if one can't be found
+	/// </summary>
+	public string? GetSourceContext(uint address, int contextLines = SourceContextLines)
+	{
+		EnsureDebugIndex();
+
+		DebugFile? debugFile = _indexedDebugFile;
+		if (debugFile is null)
+		{
+			return null;
+		}
+
+		int currentIndex = FindSourceLineIndex(address);
+		if (currentIndex < 0)
+		{
+			return null;
+		}
+
+		List<DebugSourceLine> lines = debugFile.SourceLines;
+		int start = Math.Max(0, currentIndex - contextLines);
+		int end = Math.Min(lines.Count - 1, currentIndex + contextLines);
+
+		StringBuilder sb = new();
+		int lastFileIndex = -1;
+
+		for (int i = start; i <= end; i++)
+		{
+			DebugSourceLine line = lines[i];
+
+			// Print the file name whenever it changes
+			if (line.SourceFileNameIndex != lastFileIndex)
+			{
+				sb.AppendLine($"  -- {GetSourceFileName(line.SourceFileNameIndex)} --");
+				lastFileIndex = line.SourceFileNameIndex;
+			}
+
+			string marker = i == currentIndex ? ">" : " ";
+			string lineAddress = line.OutputLength > 0 ? line.BaseAddress.ToString("X8") : new string(' ', 8);
+			string text = line.Text.TrimEnd('\r', '\n');
+
+			sb.AppendLine($" {marker} {line.Line,5} {lineAddress} | {text}");
+		}
+
+		return sb.ToString();
 	}
 
 	public string GetStandardRegisterDisplayString()
@@ -203,292 +250,288 @@ public class Debugger
 		return sb.ToString();
 	}
 
-	// Event handlers
-	private void OnBeforeMemoryRead(object? sender, MachineEvents.BeforeMemoryReadArgs args)
+	// Debug file helpers
+
+	/// <summary>
+	///     (Re)builds the lookup tables if the context's DebugFile has changed since the last call
+	/// </summary>
+	private void EnsureDebugIndex()
 	{
-		if (_inDebugger)
+		DebugFile? debugFile = _context.DebugFile;
+
+		if (ReferenceEquals(debugFile, _indexedDebugFile))
 		{
 			return;
 		}
 
-		// TODO: Watchpoints
-	}
+		_indexedDebugFile = debugFile;
+		_debugLabels = [];
+		_emittingLineIndices = [];
+		_symbolsByName = new(StringComparer.Ordinal);
 
-	private void OnBeforeMemoryWrite(object? sender, MachineEvents.BeforeMemoryWriteArgs args)
-	{
-		if (_inDebugger)
+		if (debugFile is null)
 		{
 			return;
 		}
 
-		// TODO: Watchpoints
-	}
-
-	private void OnBeforeBadMemoryRead(object? sender, MachineEvents.BeforeBadMemoryReadArgs args)
-	{
-		if (_inDebugger)
+		foreach (DebugSymbol symbol in debugFile.Symbols)
 		{
-			return;
+			_symbolsByName[symbol.Name] = symbol.Value; // Last definition wins on duplicates
 		}
 
-		Console.WriteLine($"Bad read from {args.DeviceName} at relative address 0x{args.Address:X8}");
+		_debugLabels = debugFile.Symbols
+			.Where(s => s.SymbolType == Constants.SymbolType.Label)
+			.OrderBy(s => s.Value)
+			.ToList();
+
+		_emittingLineIndices = Enumerable.Range(0, debugFile.SourceLines.Count)
+			.Where(i => debugFile.SourceLines[i].OutputLength > 0)
+			.OrderBy(i => debugFile.SourceLines[i].BaseAddress)
+			.ToList();
 	}
 
-	private void OnBeforeBadMemoryWrite(object? sender, MachineEvents.BeforeBadMemoryWriteArgs args)
+	/// <summary>
+	///     Finds the last label at or below the address. Uses the debug file's symbols if one is
+	///     loaded, otherwise falls back to the legacy symbol list on the context.
+	/// </summary>
+	private bool TryFindLabelAtOrBelow(uint address, out string? name, out uint labelAddress)
 	{
-		if (_inDebugger)
+		EnsureDebugIndex();
+
+		name = null;
+		labelAddress = 0;
+
+		if (_indexedDebugFile is not null)
 		{
-			return;
-		}
+			// Binary search for the last label with Value <= address
+			int lo = 0;
+			int hi = _debugLabels.Count - 1;
+			int found = -1;
 
-		Console.WriteLine($"Bad write to {args.DeviceName} at relative address 0x{args.Address:X8}");
-	}
-
-	private void OnBeforeInstructionFetch(object? sender, MachineEvents.BeforeInstructionFetchArgs args)
-	{
-		if (_inDebugger)
-		{
-			return;
-		}
-
-		// TODO: Breakpoints
-	}
-
-	private void OnInvalidInstruction(object? sender, MachineEvents.InvalidInstructionArgs args)
-	{
-		if (_inDebugger)
-		{
-			return;
-		}
-
-		Console.WriteLine($"Invalid instruction at 0x{args.DecodedOperation.BaseAddress:X8}: {args.Message}");
-	}
-
-	private void OnBkptInstruction(object? sender, MachineEvents.BkptInstructionArgs args)
-	{
-		Console.WriteLine();
-
-		byte code = (byte)(args.DecodedOperation.Destination?.Data ?? 0);
-
-		string pcString = GetNamedAddress(args.DecodedOperation.BaseAddress);
-
-		Console.WriteLine($"==== Hit breakpoint {code} at {pcString} ====");
-
-		switch (code)
-		{
-			case 0:
+			while (lo <= hi)
 			{
-				_context.MachineAction = Constants.MachineAction.Pause;
+				int mid = lo + ((hi - lo) / 2);
+
+				if (_debugLabels[mid].Value <= address)
+				{
+					found = mid;
+					lo = mid + 1;
+				}
+				else
+				{
+					hi = mid - 1;
+				}
+			}
+
+			if (found < 0)
+			{
+				return false;
+			}
+
+			name = _debugLabels[found].Name;
+			labelAddress = (uint)_debugLabels[found].Value;
+			return true;
+		}
+
+		// Legacy fallback. Symbols list is sorted on entry.
+		Symbol? lastBelow = null;
+
+		foreach (Symbol symbol in _context.Symbols)
+		{
+			if (symbol.Type != Constants.SymbolType.Label)
+			{
+				continue;
+			}
+
+			if ((uint)symbol.Value > address)
+			{
 				break;
 			}
-			case 1:
-			{
-				Console.WriteLine("==== REGISTER + STACK DUMP ====");
-				Console.WriteLine(GetFullRegisterDisplayString());
-				Console.WriteLine(GetStackDump(-32, 64, 4));
-				Console.WriteLine("========");
-				break;
-			}
-			case 2:
-			{
-				_logExecution = true;
-				break;
-			}
-			case 3:
-			{
-				_logExecution = false;
-				break;
-			}
+
+			lastBelow = symbol;
 		}
 
-		Console.WriteLine();
-	}
-
-	private void OnStepFinished(object? sender, MachineEvents.StepFinishedArgs args)
-	{
-		if (_logExecution)
+		if (lastBelow is null)
 		{
-			Console.WriteLine();
-			Console.WriteLine($"Executed: {_context.CurrentOperation}");
-
-			bool previousInDebugState = _inDebugger;
-			_inDebugger = true; // Don't error here
-
-			DecodedOperation nextOperation = _context.Cpu.Decode();
-
-			string pcString = GetNamedAddress(nextOperation.BaseAddress);
-
-			Console.WriteLine($"Next Operation: {nextOperation} at {pcString}");
-
-			Console.WriteLine(GetStandardRegisterDisplayString());
-			Console.WriteLine();
-
-			_inDebugger = previousInDebugState;
-		}
-	}
-
-	private void OnFrameFinished(object? sender, MachineEvents.FrameFinishedArgs args)
-	{
-		if (_inDebugger)
-		{
-			return;
+			return false;
 		}
 
-		// TODO (maybe a step frame command?)
-	}
-
-	// Command handlers
-	private bool HandleHelp(string[] args)
-	{
-		Console.WriteLine("Available commands:");
-		Console.WriteLine("\tcontinue, c              Resume execution");
-		Console.WriteLine("\tstep, s                  Single-step one instruction");
-		Console.WriteLine("\tquit, q, exit            Quit the emulator");
-		Console.WriteLine("\tlog <on|off>             Toggle execution logging");
-		Console.WriteLine("\tregs, registers, r       Dump CPU registers");
-		Console.WriteLine("\tstack, st [minus] [plus] Dump stack memory relative to SP (default -32 64)");
-		Console.WriteLine("\tmem, m <addr> [length]   Dump a region of memory (default length 64)");
-		Console.WriteLine("\thelp, ?                  Show this help text");
-		return false;
-	}
-
-	private bool HandleContinue(string[] args)
-	{
-		_context.MachineAction = Constants.MachineAction.Continue;
-		_logExecution = false;
-		_inDebugger = false;
-		return true; // Exit debugger
-	}
-
-	private bool HandleStep(string[] args)
-	{
-		_logExecution = true;
+		name = lastBelow.Name;
+		labelAddress = (uint)lastBelow.Value;
 		return true;
 	}
 
-	private bool HandleQuit(string[] args)
+	/// <summary>
+	///     Finds the index into DebugFile.SourceLines of the line whose emitted bytes contain
+	///     the address, or -1 if there is none.
+	/// </summary>
+	private int FindSourceLineIndex(uint address)
 	{
-		Environment.Exit(0);
-		return true;
-	}
-
-	private bool HandleLog(string[] args)
-	{
-		if (args.Length == 0)
+		DebugFile? debugFile = _indexedDebugFile;
+		if (debugFile is null)
 		{
-			Console.WriteLine($"Execution logging is currently {(_logExecution ? "ON" : "OFF")}.");
-			return false;
+			return -1;
 		}
 
-		switch (args[0].ToUpperInvariant())
+		// Binary search for the last emitting line with BaseAddress <= address
+		int lo = 0;
+		int hi = _emittingLineIndices.Count - 1;
+		int found = -1;
+
+		while (lo <= hi)
 		{
-			case "ON":
+			int mid = lo + ((hi - lo) / 2);
+
+			if (debugFile.SourceLines[_emittingLineIndices[mid]].BaseAddress <= address)
 			{
-				_logExecution = true;
-				Console.WriteLine("Execution logging enabled.");
-				break;
+				found = mid;
+				lo = mid + 1;
 			}
-			case "OFF":
+			else
 			{
-				_logExecution = false;
-				Console.WriteLine("Execution logging disabled.");
-				break;
-			}
-			default:
-			{
-				Console.WriteLine("Usage: log <on|off>");
-				break;
+				hi = mid - 1;
 			}
 		}
 
-		return false;
+		if (found < 0)
+		{
+			return -1;
+		}
+
+		int lineIndex = _emittingLineIndices[found];
+		DebugSourceLine line = debugFile.SourceLines[lineIndex];
+
+		return address < line.BaseAddress + line.OutputLength ? lineIndex : -1;
 	}
 
-	private bool HandleDumpRegisters(string[] args)
+	private string GetSourceFileName(int index)
 	{
-		Console.WriteLine("==== REGISTER DUMP ====");
-		Console.WriteLine(GetFullRegisterDisplayString());
-		Console.WriteLine("========");
-		return false;
+		List<string>? names = _indexedDebugFile?.SourceFileNames;
+
+		if (names is null || index < 0 || index >= names.Count)
+		{
+			return $"<unknown file {index}>";
+		}
+
+		return names[index];
 	}
 
-	private bool HandleDumpStack(string[] args)
+	private void PrintSourceContext(uint address)
 	{
-		int minus = -32;
-		int plus = 64;
+		string? context = GetSourceContext(address);
 
-		if (args.Length >= 1 && !TryParseNumber(args[0], out minus))
+		if (context is not null)
 		{
-			Console.WriteLine($"Invalid value for 'minus': {args[0]}");
-			return false;
+			Console.Write(context);
 		}
-
-		if (args.Length >= 2 && !TryParseNumber(args[1], out plus))
-		{
-			Console.WriteLine($"Invalid value for 'plus': {args[1]}");
-			return false;
-		}
-
-		Console.WriteLine("==== STACK DUMP ====");
-		Console.WriteLine(GetStackDump(minus, plus, 4));
-		Console.WriteLine("========");
-
-		return false;
 	}
 
-	private bool HandleDumpMemory(string[] args)
-	{
-		if (args.Length < 1)
-		{
-			Console.WriteLine("Usage: mem <address> [length]");
-			return false;
-		}
-
-		if (!TryParseAddress(args[0], out uint address))
-		{
-			Console.WriteLine($"Invalid address: {args[0]}");
-			return false;
-		}
-
-		int length = 64;
-		if (args.Length >= 2 && !TryParseNumber(args[1], out length))
-		{
-			Console.WriteLine($"Invalid length: {args[1]}");
-			return false;
-		}
-
-		if (length <= 0)
-		{
-			Console.WriteLine("Length must be positive.");
-			return false;
-		}
-
-		Console.WriteLine("==== MEMORY DUMP ====");
-		Console.WriteLine(GetMemoryDump(address, length, 16));
-		Console.WriteLine("========");
-
-		return false;
-	}
-
-	// Helpers
-	private static bool TryParseNumber(string value, out int result)
+	// Parsing + dump helpers
+	/// <summary>
+	///     Parses a decimal number, a 0x-prefixed hex number, or a symbol (optionally with +/- offset)
+	/// </summary>
+	private bool TryParseNumber(string value, out int result)
 	{
 		if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
 		{
 			return int.TryParse(value.AsSpan(2), NumberStyles.HexNumber, null, out result);
 		}
 
-		return int.TryParse(value, out result);
+		if (int.TryParse(value, out result))
+		{
+			return true;
+		}
+
+		if (TryResolveSymbolExpression(value, out long symbolValue)
+			&& symbolValue >= int.MinValue && symbolValue <= int.MaxValue)
+		{
+			result = (int)symbolValue;
+			return true;
+		}
+
+		result = 0;
+		return false;
 	}
 
-	private static bool TryParseAddress(string value, out uint result)
+	/// <summary>
+	///     Parses an address: a 0x-prefixed hex number, a symbol (optionally with +/- offset), or a decimal
+	///     number.
+	/// </summary>
+	private bool TryParseAddress(string value, out uint result)
 	{
 		if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
 		{
 			return uint.TryParse(value.AsSpan(2), NumberStyles.HexNumber, null, out result);
 		}
 
-		return uint.TryParse(value, NumberStyles.HexNumber, null, out result);
+		if (TryResolveSymbolExpression(value, out long symbolValue)
+			&& symbolValue >= 0 && symbolValue <= uint.MaxValue)
+		{
+			result = (uint)symbolValue;
+			return true;
+		}
+
+		return uint.TryParse(value, NumberStyles.None, null, out result);
+	}
+
+	/// <summary>
+	///     Resolves "name", "name+offset" or "name-offset" to a symbol value. Offsets are decimal or
+	///     0x-prefixed hex.
+	/// </summary>
+	private bool TryResolveSymbolExpression(string text, out long value)
+	{
+		if (TryGetSymbolValue(text, out value))
+		{
+			return true;
+		}
+
+		int split = text.LastIndexOfAny(['+', '-']);
+		if (split > 0 && split < text.Length - 1
+			&& TryGetSymbolValue(text[..split], out long baseValue)
+			&& TryParseOffset(text[(split + 1)..], out long offset))
+		{
+			value = text[split] == '+' ? baseValue + offset : baseValue - offset;
+			return true;
+		}
+
+		value = 0;
+		return false;
+	}
+
+	private static bool TryParseOffset(string text, out long offset)
+	{
+		if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+		{
+			return long.TryParse(text.AsSpan(2), NumberStyles.HexNumber, null, out offset);
+		}
+
+		return long.TryParse(text, NumberStyles.None, null, out offset);
+	}
+
+	/// <summary>
+	///     Looks up a symbol of any type by exact name, in the debug file if loaded, otherwise in
+	///     the legacy symbol list.
+	/// </summary>
+	private bool TryGetSymbolValue(string name, out long value)
+	{
+		EnsureDebugIndex();
+
+		if (_indexedDebugFile is not null)
+		{
+			return _symbolsByName.TryGetValue(name, out value);
+		}
+
+		foreach (Symbol symbol in _context.Symbols)
+		{
+			if (string.Equals(symbol.Name, name, StringComparison.Ordinal))
+			{
+				value = symbol.Value;
+				return true;
+			}
+		}
+
+		value = 0;
+		return false;
 	}
 
 	private string GetStackDump(int minus, int plus, int bytesPerLine)
@@ -578,5 +621,41 @@ public class Debugger
 		}
 
 		return sb.ToString();
+	}
+
+	private bool BreakpointHit(uint address, Constants.AccessType accessType)
+	{
+		// TODO: ugly :(
+		foreach (var breakpoint in _breakpoints)
+		{
+			if (!breakpoint.Active)
+			{
+				continue;
+			}
+
+			if (address == breakpoint.Address)
+			{
+				if (breakpoint.Type == Constants.BreakpointType.Execute && accessType == Constants.AccessType.Execute)
+				{
+					return true;
+				}
+
+				if ((breakpoint.Type == Constants.BreakpointType.Read
+					|| breakpoint.Type == Constants.BreakpointType.ReadWrite)
+					&& accessType == Constants.AccessType.Read)
+				{
+					return true;
+				}
+
+				if ((breakpoint.Type == Constants.BreakpointType.Write
+					|| breakpoint.Type == Constants.BreakpointType.ReadWrite)
+					&& accessType == Constants.AccessType.Write)
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 }

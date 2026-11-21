@@ -5,7 +5,7 @@ namespace IM800Emu.Core.CPU;
 
 /// <summary>
 /// </summary>
-public class Registers
+internal class Registers
 {
 	// Register file size:
 	// AF+BC+DE+HL+IX+IY+SP @ 4-bytes = 28 bytes

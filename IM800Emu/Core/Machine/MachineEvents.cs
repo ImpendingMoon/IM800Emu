@@ -2,7 +2,7 @@ using IM800Emu.Core.CPU;
 
 namespace IM800Emu.Core.Machine;
 
-public class MachineEvents
+internal class MachineEvents
 {
 	public event EventHandler<BeforeMemoryReadArgs>? BeforeMemoryRead;
 	public event EventHandler<BeforeMemoryWriteArgs>? BeforeMemoryWrite;
@@ -100,29 +100,14 @@ public class MachineEvents
 		FrameFinished?.Invoke(this, args);
 	}
 
-	public class BeforeMemoryReadArgs : EventArgs
+	internal class BeforeMemoryReadArgs : EventArgs
 	{
 		public uint Address { get; set; }
 		public Constants.DataSize DataSize { get; set; }
 		public required string DeviceName { get; set; }
 	}
 
-	public class BeforeMemoryWriteArgs : EventArgs
-	{
-		public uint Address { get; set; }
-		public Constants.DataSize DataSize { get; set; }
-		public uint Value { get; set; }
-		public required string DeviceName { get; set; }
-	}
-
-	public class BeforeBadMemoryReadArgs : EventArgs
-	{
-		public uint Address { get; set; }
-		public Constants.DataSize DataSize { get; set; }
-		public required string DeviceName { get; set; }
-	}
-
-	public class BeforeBadMemoryWriteArgs : EventArgs
+	internal class BeforeMemoryWriteArgs : EventArgs
 	{
 		public uint Address { get; set; }
 		public Constants.DataSize DataSize { get; set; }
@@ -130,28 +115,43 @@ public class MachineEvents
 		public required string DeviceName { get; set; }
 	}
 
-	public class BeforeInstructionFetchArgs : EventArgs
+	internal class BeforeBadMemoryReadArgs : EventArgs
+	{
+		public uint Address { get; set; }
+		public Constants.DataSize DataSize { get; set; }
+		public required string DeviceName { get; set; }
+	}
+
+	internal class BeforeBadMemoryWriteArgs : EventArgs
+	{
+		public uint Address { get; set; }
+		public Constants.DataSize DataSize { get; set; }
+		public uint Value { get; set; }
+		public required string DeviceName { get; set; }
+	}
+
+	internal class BeforeInstructionFetchArgs : EventArgs
 	{
 		public uint ProgramCounter { get; set; }
 	}
 
-	public class InvalidInstructionArgs : EventArgs
+	internal class InvalidInstructionArgs : EventArgs
 	{
 		public required DecodedOperation DecodedOperation { get; set; }
 		public required string Message { get; set; }
 	}
 
-	public class BkptInstructionArgs : EventArgs
+	internal class BkptInstructionArgs : EventArgs
 	{
 		public required DecodedOperation DecodedOperation { get; set; }
 	}
 
-	public class StepFinishedArgs : EventArgs
+	internal class StepFinishedArgs : EventArgs
 	{
 
 	}
 
-	public class FrameFinishedArgs : EventArgs
+	internal class FrameFinishedArgs : EventArgs
 	{
 
 	}

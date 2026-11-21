@@ -2,7 +2,7 @@ using IM800Emu.Core.Bus;
 
 namespace IM800Emu.Core.CPU;
 
-public partial class IM800
+internal partial class IM800
 {
 	private bool IsConditionTrue(Constants.Condition condition)
 	{

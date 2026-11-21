@@ -1,6 +1,6 @@
 namespace IM800Emu.Core.IM800Debug;
 
-public class Symbol
+internal class Symbol
 {
 	public Symbol(Constants.SymbolType type, string name, long value)
 	{

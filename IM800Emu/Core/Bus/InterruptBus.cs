@@ -2,7 +2,7 @@ using IM800Emu.Core.Device;
 
 namespace IM800Emu.Core.Bus;
 
-public class InterruptBus
+internal class InterruptBus
 {
 	private readonly List<(IInterruptingDevice device, int priority)> _devices = [];
 

@@ -10,7 +10,7 @@ namespace IM800Emu.Core.Device;
 ///     1 - Config (Read/Write)
 ///			- b0: Display Enable
 /// </summary>
-public class VideoDevice : IMemoryDevice, ISteppingDevice
+internal class VideoDevice : IMemoryDevice, ISteppingDevice
 {
 	private readonly MachineContext _context;
 	private readonly string _name;
