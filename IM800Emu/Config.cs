@@ -13,6 +13,9 @@ internal static class Config
 	public static int MemoryBaseWaitStates => 3; // 3 cycles per bus transfer
 	public static int IOBaseWaitStates => MemoryBaseWaitStates + 1; // +1 for I/O delay
 
+	// -- Debug --
+	public static int DebugContextLines => 5; // Source lines to print around PC when paused
+
 	// -- Controller --
 	public static KeyboardKey LeftKeyBinding => KeyboardKey.A;
 	public static KeyboardKey RightKeyBinding => KeyboardKey.D;

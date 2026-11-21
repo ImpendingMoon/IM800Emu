@@ -8,12 +8,16 @@ namespace IM800Emu.Core.IM800Debug;
 
 internal partial class Debugger
 {
-	private const int SourceContextLines = 3;
-
 	private readonly MachineContext _context;
 	private readonly Dictionary<string, Func<string[], bool>> _commands;
 	private bool _inDebugger;
 	private bool _logExecution;
+	// Instructions left to run after the current one when 'step <n>' is in progress
+	private int _stepsRemaining;
+
+	// Breakpoints and watchpoints, keyed by address. Checked from DebuggerEvent.
+	private readonly Dictionary<uint, Breakpoint> _breakpoints = [];
+	private readonly Dictionary<uint, Watchpoint> _watchpoints = [];
 
 	// The debug file that's currently indexed. In case this ever can change without restarting the emulator.
 	private DebugFile? _indexedDebugFile;
@@ -22,7 +26,6 @@ internal partial class Debugger
 	private Dictionary<string, long> _symbolsByName = new(StringComparer.Ordinal);
 	// Indices into DebugFile.SourceLines of lines that emit bytes, sorted by BaseAddress
 	private List<int> _emittingLineIndices = [];
-	private List<Breakpoint> _breakpoints;
 
 	public Debugger(MachineContext context)
 	{
@@ -44,28 +47,27 @@ internal partial class Debugger
 
 		_commands = new(StringComparer.OrdinalIgnoreCase)
 		{
+			["help"] = HandleHelp,
+			["?"] = HandleHelp,
+			["pause"] = HandlePause,
 			["continue"] = HandleContinue,
 			["c"] = HandleContinue,
-			["quit"] = HandleQuit,
-			["q"] = HandleQuit,
-			["exit"] = HandleQuit,
 			["step"] = HandleStep,
 			["s"] = HandleStep,
-			["log"] = HandleLog,
-			["regs"] = HandleDumpRegisters,
-			["registers"] = HandleDumpRegisters,
-			["r"] = HandleDumpRegisters,
-			["stack"] = HandleDumpStack,
-			["st"] = HandleDumpStack,
-			["mem"] = HandleDumpMemory,
-			["m"] = HandleDumpMemory,
+			["reset"] = HandleReset,
+			["exit"] = HandleExit,
+			["quit"] = HandleExit,
+			["q"] = HandleExit,
+			["trace"] = HandleTrace,
+			["read"] = HandleRead,
+			["write"] = HandleWrite,
 			["break"] = HandleBreak,
 			["b"] = HandleBreak,
-			["help"] = HandleHelp,
-			["?"] = HandleHelp
+			["watch"] = HandleWatch,
+			["w"] = HandleWatch,
+			["list"] = HandleList,
+			["l"] = HandleList,
 		};
-
-		_breakpoints = new List<Breakpoint>();
 	}
 
 	~Debugger()
@@ -95,8 +97,23 @@ internal partial class Debugger
 		}
 	}
 
+	/// <summary>
+	///     Cancels the remainder of a 'step n' (e.g. when a breakpoint or watchpoint hits mid-step)
+	/// </summary>
+	public void CancelPendingSteps()
+	{
+		_stepsRemaining = 0;
+	}
+
 	public void RunPauseState()
 	{
+		// In the middle of 'step <n>': let the machine run the next instruction without prompting
+		if (_stepsRemaining > 0)
+		{
+			_stepsRemaining--;
+			return;
+		}
+
 		if (!_inDebugger)
 		{
 			_inDebugger = true;
@@ -163,11 +180,16 @@ internal partial class Debugger
 		return $"{name}+{offset} ({address:X8})";
 	}
 
+	public string? GetSourceContext(uint address)
+	{
+		return GetSourceContext(address, Config.DebugContextLines, Config.DebugContextLines, true);
+	}
+
 	/// <summary>
 	///     Gets a formatted block of source lines surrounding the line that was emitted at the
 	///     given address, or null if one can't be found
 	/// </summary>
-	public string? GetSourceContext(uint address, int contextLines = SourceContextLines)
+	public string? GetSourceContext(uint address, int before, int after, bool printMarker)
 	{
 		EnsureDebugIndex();
 
@@ -184,8 +206,8 @@ internal partial class Debugger
 		}
 
 		List<DebugSourceLine> lines = debugFile.SourceLines;
-		int start = Math.Max(0, currentIndex - contextLines);
-		int end = Math.Min(lines.Count - 1, currentIndex + contextLines);
+		int start = Math.Max(0, currentIndex - before);
+		int end = Math.Min(lines.Count - 1, currentIndex + after);
 
 		StringBuilder sb = new();
 		int lastFileIndex = -1;
@@ -201,11 +223,11 @@ internal partial class Debugger
 				lastFileIndex = line.SourceFileNameIndex;
 			}
 
-			string marker = i == currentIndex ? ">" : " ";
+			string marker = (printMarker && i == currentIndex) ? ">" : " ";
 			string lineAddress = line.OutputLength > 0 ? line.BaseAddress.ToString("X8") : new string(' ', 8);
 			string text = line.Text.TrimEnd('\r', '\n');
 
-			sb.AppendLine($" {marker} {line.Line,5} {lineAddress} | {text}");
+			sb.AppendLine($"{lineAddress} {marker} {line.Line,5} | {text}");
 		}
 
 		return sb.ToString();
@@ -510,10 +532,16 @@ internal partial class Debugger
 
 	/// <summary>
 	///     Looks up a symbol of any type by exact name, in the debug file if loaded, otherwise in
-	///     the legacy symbol list.
+	///     the legacy symbol list. Also supports '$' to reference the current PC
 	/// </summary>
 	private bool TryGetSymbolValue(string name, out long value)
 	{
+		if (name == "$")
+		{
+			value = _context.Cpu.Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			return true;
+		}
+
 		EnsureDebugIndex();
 
 		if (_indexedDebugFile is not null)
@@ -621,41 +649,5 @@ internal partial class Debugger
 		}
 
 		return sb.ToString();
-	}
-
-	private bool BreakpointHit(uint address, Constants.AccessType accessType)
-	{
-		// TODO: ugly :(
-		foreach (var breakpoint in _breakpoints)
-		{
-			if (!breakpoint.Active)
-			{
-				continue;
-			}
-
-			if (address == breakpoint.Address)
-			{
-				if (breakpoint.Type == Constants.BreakpointType.Execute && accessType == Constants.AccessType.Execute)
-				{
-					return true;
-				}
-
-				if ((breakpoint.Type == Constants.BreakpointType.Read
-					|| breakpoint.Type == Constants.BreakpointType.ReadWrite)
-					&& accessType == Constants.AccessType.Read)
-				{
-					return true;
-				}
-
-				if ((breakpoint.Type == Constants.BreakpointType.Write
-					|| breakpoint.Type == Constants.BreakpointType.ReadWrite)
-					&& accessType == Constants.AccessType.Write)
-				{
-					return true;
-				}
-			}
-		}
-
-		return false;
 	}
 }

@@ -174,21 +174,6 @@ public static class Constants
 		Text80x25 = 0,
 	}
 
-	public enum BreakpointType
-	{
-		Read,
-		Write,
-		ReadWrite,
-		Execute,
-	}
-
-	public enum AccessType
-	{
-		Read,
-		Write,
-		Execute,
-	}
-
 	public static readonly int DwordALUCost = 1;
 	public static readonly int TargetFramerate = 60;
 	public static readonly int WindowWidth = 640;

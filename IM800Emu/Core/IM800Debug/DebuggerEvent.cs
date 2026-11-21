@@ -13,9 +13,13 @@ internal partial class Debugger
 			return;
 		}
 
-		if (BreakpointHit(args.Address, Constants.AccessType.Read))
+		if (_watchpoints.TryGetValue(args.Address, out var watchpoint))
 		{
-			_context.MachineAction = Constants.MachineAction.Pause;
+			if (watchpoint.BreakOnRead)
+			{
+				Console.WriteLine($"Read watchpoint hit at 0x{args.Address:X8}");
+				_context.MachineAction = Constants.MachineAction.Pause;
+			}
 		}
 	}
 
@@ -26,9 +30,13 @@ internal partial class Debugger
 			return;
 		}
 
-		if (BreakpointHit(args.Address, Constants.AccessType.Write))
+		if (_watchpoints.TryGetValue(args.Address, out var watchpoint))
 		{
-			_context.MachineAction = Constants.MachineAction.Pause;
+			if (watchpoint.BreakOnWrite)
+			{
+				Console.WriteLine($"Write watchpoint hit at 0x{args.Address:X8}");
+				_context.MachineAction = Constants.MachineAction.Pause;
+			}
 		}
 	}
 
@@ -59,8 +67,9 @@ internal partial class Debugger
 			return;
 		}
 
-		if (BreakpointHit(args.ProgramCounter, Constants.AccessType.Execute))
+		if (_breakpoints.TryGetValue(args.ProgramCounter, out var breakpoint))
 		{
+			Console.WriteLine($"Breakpoint hit at 0x{args.ProgramCounter:X8}");
 			_context.MachineAction = Constants.MachineAction.Pause;
 		}
 	}
