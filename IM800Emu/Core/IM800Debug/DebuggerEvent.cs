@@ -92,7 +92,7 @@ internal partial class Debugger
 
 		string pcString = GetNamedAddress(args.DecodedOperation.BaseAddress);
 
-		Console.WriteLine($"==== Hit breakpoint {code} at {pcString} ====");
+		Console.WriteLine($"Hit BKPT {code} at {pcString}");
 
 		switch (code)
 		{
@@ -103,10 +103,8 @@ internal partial class Debugger
 			}
 			case 1:
 			{
-				Console.WriteLine("==== REGISTER + STACK DUMP ====");
 				Console.WriteLine(GetFullRegisterDisplayString());
 				Console.WriteLine(GetStackDump(-32, 64, 4));
-				Console.WriteLine("========");
 				break;
 			}
 			case 2:

@@ -120,9 +120,10 @@ internal partial class Debugger
 
 			Console.WriteLine("Emulator Paused.");
 
-			string pcString = GetNamedAddress(_context.CurrentOperation.BaseAddress);
+			uint pc = _context.Cpu.Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
+			string pcString = GetNamedAddress(pc);
 
-			Console.WriteLine($"Currently executing {_context.CurrentOperation} at {pcString}");
+			Console.WriteLine($"Executed: {_context.CurrentOperation} at {pcString}");
 			PrintSourceContext(_context.CurrentOperation.BaseAddress);
 			Console.WriteLine();
 			Console.WriteLine("Type 'help' for a list of commands.");
@@ -260,13 +261,9 @@ internal partial class Debugger
 		var sb = new StringBuilder();
 
 		Registers registers = _context.Cpu.Registers;
-		sb.AppendLine("Registers:");
 		sb.AppendLine(GetStandardRegisterDisplayString());
-		sb.AppendLine("Alternate Registers:");
 		sb.AppendLine(registers.GetAlternateDisplayString());
-		sb.AppendLine("System Registers:");
 		sb.AppendLine(registers.GetSystemDisplayString());
-		sb.AppendLine("Flags:");
 		sb.AppendLine(registers.GetFlagsDisplayString());
 
 		return sb.ToString();

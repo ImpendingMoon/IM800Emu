@@ -175,9 +175,7 @@ internal partial class Debugger
 			}
 			case "REGS":
 			{
-				Console.WriteLine("==== REGISTER DUMP ====");
 				Console.WriteLine(GetFullRegisterDisplayString());
-				Console.WriteLine("========");
 				break;
 			}
 			case "STACK":
@@ -232,9 +230,7 @@ internal partial class Debugger
 			return;
 		}
 
-		Console.WriteLine(isPort ? "==== PORT DUMP ====" : "==== MEMORY DUMP ====");
 		Console.WriteLine(isPort ? GetPortDump(address, length, 16) : GetMemoryDump(address, length, 16));
-		Console.WriteLine("========");
 	}
 
 	private void ReadRegister(string[] args)
@@ -253,13 +249,15 @@ internal partial class Debugger
 
 		Constants.DataSize size = GetNativeRegisterSize(target);
 		uint value = _context.Cpu.Registers.Read(target, size);
-		int digits = size == Constants.DataSize.Byte ? 2 : 8;
+		int digits = size == Constants.DataSize.Word ? 4 : 8;
 
 		string display = target == Constants.RegisterTarget.PC
 			? GetNamedAddress(value)
 			: $"{value.ToString("X" + digits)}";
 
-		Console.WriteLine($"{target.ToString().Replace('_', '\'')} = {display} ({value})");
+		char character = (value >= ' ' && value <= '~') ? (char)value : ' ';
+
+		Console.WriteLine($"{target.ToString().Replace('_', '\'')} = {display} ({value}) '{character}'");
 	}
 
 	private void ReadStack(string[] args)
@@ -291,9 +289,7 @@ internal partial class Debugger
 			return;
 		}
 
-		Console.WriteLine("==== STACK DUMP ====");
 		Console.WriteLine(GetStackDump(-below, above, 4));
-		Console.WriteLine("========");
 	}
 
 	// write
@@ -592,6 +588,11 @@ internal partial class Debugger
 
 	private bool HandleList(string[] args)
 	{
+		if (args.Length >= 1 && string.Equals(args[0], "labels", StringComparison.OrdinalIgnoreCase))
+		{
+			return HandleListLabels(args);
+		}
+
 		uint address = _context.Cpu.Registers.Read(Constants.RegisterTarget.PC, Constants.DataSize.Dword);
 		int before = Config.DebugContextLines;
 		int after = Config.DebugContextLines;
@@ -635,6 +636,34 @@ internal partial class Debugger
 	private static void PrintListUsage()
 	{
 		Console.WriteLine("Usage: list [address] [count]");
+	}
+
+	private bool HandleListLabels(string[] args)
+	{
+		List<DebugSymbol> labels = new List<DebugSymbol>();
+
+		if (args.Length >= 2)
+		{
+			string searchString = args[1];
+			foreach (var label in _debugLabels)
+			{
+				if (label.Name.Contains(searchString))
+				{
+					labels.Add(label);
+				}
+			}
+		}
+		else
+		{
+			labels = _debugLabels;
+		}
+
+		foreach (var label in labels)
+		{
+			Console.WriteLine(label);
+		}
+
+		return false;
 	}
 
 	// Parsing / formatting helpers
@@ -719,8 +748,8 @@ internal partial class Debugger
 				or Constants.RegisterTarget.B_ or Constants.RegisterTarget.C_
 				or Constants.RegisterTarget.D_ or Constants.RegisterTarget.E_
 				or Constants.RegisterTarget.H_ or Constants.RegisterTarget.L_
-				or Constants.RegisterTarget.I or Constants.RegisterTarget.R
-				=> Constants.DataSize.Byte,
+				or Constants.RegisterTarget.R
+				=> Constants.DataSize.Word,
 			_ => Constants.DataSize.Dword
 		};
 	}

@@ -31,4 +31,9 @@ internal class DebugSymbol
 	/// </summary>
 	[DataMember]
 	public long Value { get; set; }
+
+	public override string ToString()
+	{
+		return $"{Name}: 0x{Value:X8}";
+	}
 }

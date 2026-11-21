@@ -146,13 +146,9 @@ internal class Registers
 	{
 		var sb = new StringBuilder();
 
-		sb.AppendLine("Registers:");
 		sb.AppendLine(GetStandardDisplayString());
-		sb.AppendLine("Alternate Registers:");
 		sb.AppendLine(GetAlternateDisplayString());
-		sb.AppendLine("System Registers:");
 		sb.AppendLine(GetSystemDisplayString());
-		sb.AppendLine("Flags:");
 		sb.AppendLine(GetFlagsDisplayString());
 
 		return sb.ToString();
